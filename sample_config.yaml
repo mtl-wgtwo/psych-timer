@@ -1,0 +1,8 @@
+conditionInterval:
+  - 5
+  - 8
+  - 15
+randomizeInterval: true
+pauseInterval: 10
+playSound: true
+soundFile: "beep.wav"
