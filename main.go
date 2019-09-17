@@ -3,76 +3,115 @@ package main
 import (
 	"fmt"
 	"log"
-	"math/rand"
-	"os"
-	"time"
+	"mime"
+	"net/http"
+	"path/filepath"
+	"strings"
 
 	"github.com/docopt/docopt-go"
-	"github.com/mitchellh/copystructure"
+	"github.com/gorilla/websocket"
 	"github.com/spf13/viper"
-
-	"github.com/faiface/beep"
-	"github.com/faiface/beep/speaker"
-	"github.com/faiface/beep/wav"
 )
 
-type config struct {
-	ConditionInterval []int  `yaml:"conditionInterval,omitempty"`
-	RandomizeInterval bool   `yaml:"randomizeInterval,omitempty"`
-	PauseInterval     int    `yaml:"pauseInterval,omitempty"`
-	PlaySound         bool   `yaml:"playSound,omitempty"`
-	SoundFile         string `yaml:"soundFile,omitempty"`
+var c Config
+
+type ClientMessage struct {
+	SubjectID string `json:"subjectId,omitempty"`
+	Action    string `json:"action,omitempty"`
+	Content   string `json:"content,omitempty"`
 }
 
-type psychTimer struct {
-	c config
-	s beep.StreamSeekCloser
-	f beep.Format
+type ServerMessage struct {
+	Kind    string `json:"kind,omitempty"`
+	Message string `json:"message,omitempty"`
 }
 
-func NewPsychTimer(c config) *psychTimer {
-	t, _ := copystructure.Copy(c)
-	n := t.(config)
+var client *PsychTimer
+var action = make(chan ClientMessage) // broadcast channel
+var serverMsg = make(chan ServerMessage)
 
-	if n.RandomizeInterval {
-		rand.Shuffle(len(n.ConditionInterval), func(i, j int) {
-			n.ConditionInterval[i], n.ConditionInterval[j] = n.ConditionInterval[j], n.ConditionInterval[i]
-		})
-	}
-	f, err := os.Open(n.SoundFile)
+var upgrader = websocket.Upgrader{
+	CheckOrigin: func(r *http.Request) bool {
+		return true
+	},
+}
+
+// MapServer does stuff
+func MapServer(root map[string]string) http.Handler {
+	return &mapHandler{root}
+}
+
+type mapHandler struct {
+	root map[string]string
+}
+
+func (m *mapHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	upath := strings.TrimPrefix(r.URL.Path, "/")
+	//	fmt.Printf("Trying to read %s\n", upath)
+	//	fmt.Printf("have: %+v\n", m.root[upath])
+	ctype := mime.TypeByExtension(filepath.Ext(upath))
+	//	fmt.Printf("Detected content type: %+v\n", ctype)
+	w.Header().Set("Content-Type", ctype)
+	fmt.Fprint(w, m.root[upath])
+}
+
+func handler(w http.ResponseWriter, _ *http.Request) {
+	fmt.Fprint(w, "Hello World!")
+}
+
+func handleConnections(w http.ResponseWriter, r *http.Request) {
+	// Upgrade initial GET request to a websocket
+	ws, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Fatal(err)
 	}
+	// Make sure we close the connection when the function returns
+	defer ws.Close()
 
-	streamer, format, err := wav.Decode(f)
-	if err != nil {
-		log.Fatal(err)
+	fmt.Println("Upgraded to ws!")
+
+	// Register our new client
+	client = NewPsychTimer(c, ws)
+
+	for {
+		var msg ClientMessage
+		// Read in a new message as JSON and map it to a Message object
+		err := ws.ReadJSON(&msg)
+		if err != nil {
+			log.Printf("error: %v", err)
+			client = nil
+			break
+		}
+		fmt.Printf("Received message %+v", msg)
+		// Send the newly received message to the broadcast channel
+		action <- msg
 	}
-
-	return &psychTimer{n, streamer, format}
 }
 
-func (p *psychTimer) playBeep() {
-	fmt.Printf("Playing sound %s\n", p.c.SoundFile)
+func handleActions() {
+	for {
+		// Grab the next message from the broadcast channel
+		msg := <-action
 
-	p.s.Seek(0)
-	speaker.Init(p.f.SampleRate, p.f.SampleRate.N(time.Second/10))
-	speaker.Play(p.s)
+		if msg.Action == "START" {
+			go client.RunOne(msg.SubjectID, serverMsg)
+
+		}
+		if msg.Action == "KEY" {
+			fmt.Printf("Received keycode %s for subject %s\n", msg.Content, msg.SubjectID)
+		}
+	}
 }
 
-func (p *psychTimer) RunOne() {
-	for _, v := range p.c.ConditionInterval {
-		fmt.Println("New interval")
-		if p.c.PlaySound {
-			p.playBeep()
+func handleServerMessages() {
+	for {
+		sMsg := <-serverMsg
+
+		err := client.Conn.WriteJSON(sMsg)
+		if err != nil {
+			log.Printf("error: %v", err)
+			client.Conn.Close()
 		}
-		fmt.Printf("Waiting %d seconds\n", v)
-		time.Sleep(time.Duration(v) * time.Second)
-		if p.c.PlaySound {
-			p.playBeep()
-		}
-		fmt.Printf("Waiting %d seconds for input\n", p.c.PauseInterval)
-		time.Sleep(time.Duration(p.c.PauseInterval) * time.Second)
 	}
 }
 
@@ -87,13 +126,12 @@ Usage:
 	arguments, _ := docopt.ParseDoc(usage)
 	fmt.Printf("%+v\n", arguments)
 
-	var c config
 	viper.SetConfigName(arguments["<config>"].(string)) // name of config file (without extension)
 	viper.AddConfigPath("$HOME/.psych_timer")           // call multiple times to add many search paths
 	viper.AddConfigPath(".")                            // optionally look for config in the working directory
 	err := viper.ReadInConfig()                         // Find and read the config file
 	if err != nil {                                     // Handle errors reading the config file
-		panic(fmt.Errorf("Fatal error config file: %s \n", err))
+		panic(fmt.Errorf("fatal error config file: %s", err))
 	}
 
 	err = viper.Unmarshal(&c)
@@ -103,7 +141,15 @@ Usage:
 
 	fmt.Printf("%+v\n", c)
 
-	t := NewPsychTimer(c)
-	t.RunOne()
+	http.Handle("/static/", MapServer(Data))
 
+	// Configure websocket route
+	http.HandleFunc("/ws", handleConnections)
+
+	go handleActions()
+	go handleServerMessages()
+	err = http.ListenAndServe(":8080", nil)
+	if err != nil {
+		log.Fatal("ListenAndServe: ", err)
+	}
 }

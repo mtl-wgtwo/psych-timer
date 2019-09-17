@@ -1,0 +1,9 @@
+conditionInterval:
+  - 300
+  - 300
+  - 300
+randomizeInterval: false
+pauseInterval: 30
+playSound: true
+soundFile: "beep.wav"
+introText: "This is the HRV condition"
