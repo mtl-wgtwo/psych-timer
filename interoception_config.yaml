@@ -7,3 +7,4 @@ pauseInterval: 10
 playSound: true
 soundFile: "beep.wav"
 introText: "This is the Interoception condition"
+pauseInputMatcher: "([0-9]+)[\n\r]"

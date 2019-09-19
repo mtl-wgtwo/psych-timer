@@ -5,6 +5,7 @@ import (
 	"log"
 	"math/rand"
 	"os"
+	"regexp"
 	"time"
 
 	"github.com/faiface/beep"
@@ -20,16 +21,21 @@ type Config struct {
 	PauseInterval     int    `yaml:"pauseInterval,omitempty"`
 	PlaySound         bool   `yaml:"playSound,omitempty"`
 	SoundFile         string `yaml:"soundFile,omitempty"`
+	PauseInputMatcher string `yaml:"pauseInputMatcher,omitempty"`
 }
 
 type PsychTimer struct {
-	C    Config
-	S    beep.StreamSeekCloser
-	F    beep.Format
-	Conn *websocket.Conn
+	config      Config
+	soundStream beep.StreamSeekCloser
+	soundFormat beep.Format
+	conn        *websocket.Conn
+	regex       *regexp.Regexp
+	matches     []string
+	matchBytes  []byte
+	ch          chan ServerMessage
 }
 
-func NewPsychTimer(c Config, conn *websocket.Conn) *PsychTimer {
+func NewPsychTimer(c Config, conn *websocket.Conn, ch chan ServerMessage) *PsychTimer {
 	t, _ := copystructure.Copy(c)
 	n := t.(Config)
 
@@ -50,50 +56,78 @@ func NewPsychTimer(c Config, conn *websocket.Conn) *PsychTimer {
 		log.Fatal(err)
 	}
 
-	return &PsychTimer{n, streamer, format, conn}
+	var matcher *regexp.Regexp
+	if n.PauseInputMatcher != "" {
+		matcher = regexp.MustCompile(n.PauseInputMatcher)
+	}
+
+	return &PsychTimer{
+		config:      n,
+		soundStream: streamer,
+		soundFormat: format,
+		conn:        conn,
+		regex:       matcher,
+		ch:          ch}
 }
 
 func (p *PsychTimer) playBeep() {
-	fmt.Printf("Playing sound %s\n", p.C.SoundFile)
+	fmt.Printf("Playing sound %s\n", p.config.SoundFile)
 
-	p.S.Seek(0)
-	speaker.Init(p.F.SampleRate, p.F.SampleRate.N(time.Second/10))
-	speaker.Play(p.S)
+	p.soundStream.Seek(0)
+	speaker.Init(p.soundFormat.SampleRate, p.soundFormat.SampleRate.N(time.Second/10))
+	speaker.Play(p.soundStream)
 }
 
-func (p *PsychTimer) RunOne(ID string, ch chan ServerMessage) {
-	ch <- ServerMessage{
+func (p *PsychTimer) RunOne(ID string) {
+	p.ch <- ServerMessage{
 		Kind:    "BEGIN",
 		Message: ID,
 	}
-	for _, v := range p.C.ConditionInterval {
-		ch <- ServerMessage{
+	for _, v := range p.config.ConditionInterval {
+		p.ch <- ServerMessage{
 			Kind:    "INFO",
 			Message: fmt.Sprintf("Starting new interval for %s", ID),
 		}
-		if p.C.PlaySound {
+		if p.config.PlaySound {
 			p.playBeep()
 		}
-		ch <- ServerMessage{
+		p.ch <- ServerMessage{
 			Kind:    "INFO",
 			Message: fmt.Sprintf("Waiting %d seconds for math\n", v),
 		}
 		time.Sleep(time.Duration(v) * time.Second)
-		if p.C.PlaySound {
+		if p.config.PlaySound {
 			p.playBeep()
 		}
-		ch <- ServerMessage{
+		p.ch <- ServerMessage{
 			Kind:    "INFO",
-			Message: fmt.Sprintf("Waiting %d seconds for input\n", p.C.PauseInterval),
+			Message: fmt.Sprintf("Waiting %d seconds for input\n", p.config.PauseInterval),
 		}
-		time.Sleep(time.Duration(p.C.PauseInterval) * time.Second)
-		ch <- ServerMessage{
+		time.Sleep(time.Duration(p.config.PauseInterval) * time.Second)
+		p.ch <- ServerMessage{
 			Kind:    "INFO",
 			Message: fmt.Sprintf("Done with interval for %s", ID),
 		}
 	}
-	ch <- ServerMessage{
+	p.ch <- ServerMessage{
 		Kind:    "END",
 		Message: ID,
+	}
+}
+
+func (p *PsychTimer) AddKey(k string, b byte) {
+	p.matchBytes = append(p.matchBytes, b)
+	fmt.Println(p.matchBytes)
+
+	if p.regex != nil {
+		m := p.regex.Find(p.matchBytes)
+		if m != nil {
+			p.matches = append(p.matches, string(m))
+			p.matchBytes = nil
+			p.ch <- ServerMessage{
+				Kind:    "INFO",
+				Message: fmt.Sprintf("Matched number: %s", p.matches[len(p.matches)-1]),
+			}
+		}
 	}
 }

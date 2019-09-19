@@ -16,9 +16,10 @@ import (
 var c Config
 
 type ClientMessage struct {
-	SubjectID string `json:"subjectId,omitempty"`
+	SubjectID string `json:"subjectID,omitempty"`
 	Action    string `json:"action,omitempty"`
 	Content   string `json:"content,omitempty"`
+	KeyCode   byte   `json:"keyCode,omitempty"`
 }
 
 type ServerMessage struct {
@@ -27,8 +28,8 @@ type ServerMessage struct {
 }
 
 var client *PsychTimer
-var action = make(chan ClientMessage) // broadcast channel
-var serverMsg = make(chan ServerMessage)
+var actionChan = make(chan ClientMessage) // broadcast channel
+var serverChan = make(chan ServerMessage)
 
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
@@ -37,26 +38,27 @@ var upgrader = websocket.Upgrader{
 }
 
 // MapServer does stuff
-func MapServer(root map[string]string) http.Handler {
-	return &mapHandler{root}
+func MapServer(root map[string]string, prefix string) http.Handler {
+	return &mapHandler{root, prefix}
 }
 
 type mapHandler struct {
-	root map[string]string
+	root   map[string]string
+	prefix string
 }
 
 func (m *mapHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	upath := strings.TrimPrefix(r.URL.Path, "/")
+	if upath == "" {
+		upath = "index.html"
+	}
+	upath = strings.TrimPrefix(m.prefix, "/") + upath
 	//	fmt.Printf("Trying to read %s\n", upath)
 	//	fmt.Printf("have: %+v\n", m.root[upath])
 	ctype := mime.TypeByExtension(filepath.Ext(upath))
 	//	fmt.Printf("Detected content type: %+v\n", ctype)
 	w.Header().Set("Content-Type", ctype)
 	fmt.Fprint(w, m.root[upath])
-}
-
-func handler(w http.ResponseWriter, _ *http.Request) {
-	fmt.Fprint(w, "Hello World!")
 }
 
 func handleConnections(w http.ResponseWriter, r *http.Request) {
@@ -71,7 +73,7 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("Upgraded to ws!")
 
 	// Register our new client
-	client = NewPsychTimer(c, ws)
+	client = NewPsychTimer(c, ws, serverChan)
 
 	for {
 		var msg ClientMessage
@@ -84,33 +86,34 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 		}
 		fmt.Printf("Received message %+v", msg)
 		// Send the newly received message to the broadcast channel
-		action <- msg
+		actionChan <- msg
 	}
 }
 
 func handleActions() {
 	for {
 		// Grab the next message from the broadcast channel
-		msg := <-action
+		msg := <-actionChan
 
 		if msg.Action == "START" {
-			go client.RunOne(msg.SubjectID, serverMsg)
+			go client.RunOne(msg.SubjectID)
 
 		}
 		if msg.Action == "KEY" {
-			fmt.Printf("Received keycode %s for subject %s\n", msg.Content, msg.SubjectID)
+			fmt.Printf("Received key %s (keycode %d) for subject %s\n", msg.Content, msg.KeyCode, msg.SubjectID)
+			client.AddKey(msg.Content, msg.KeyCode)
 		}
 	}
 }
 
 func handleServerMessages() {
 	for {
-		sMsg := <-serverMsg
+		sMsg := <-serverChan
 
-		err := client.Conn.WriteJSON(sMsg)
+		err := client.conn.WriteJSON(sMsg)
 		if err != nil {
 			log.Printf("error: %v", err)
-			client.Conn.Close()
+			client.conn.Close()
 		}
 	}
 }
@@ -141,7 +144,7 @@ Usage:
 
 	fmt.Printf("%+v\n", c)
 
-	http.Handle("/static/", MapServer(Data))
+	http.Handle("/", MapServer(Data, "/static/"))
 
 	// Configure websocket route
 	http.HandleFunc("/ws", handleConnections)

@@ -7,3 +7,4 @@ pauseInterval: 30
 playSound: true
 soundFile: "beep.wav"
 introText: "This is the HRV condition"
+pauseInputMatcher: "([0-9]+)[\n\r]"

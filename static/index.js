@@ -17,7 +17,8 @@ new Vue({
           JSON.stringify({
             subjectId: this.subjectId,
             action: "KEY",
-            content: e.key
+            content: e.key,
+            keyCode: e.keyCode
           })
         );
       }
