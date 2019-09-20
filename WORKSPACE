@@ -1067,3 +1067,10 @@ go_repository(
     sum = "h1:9zdDQZ7Thm29KFXgAX/+yaf3eVbP7djjWp/dXAppNCc=",
     version = "v0.0.0-20190717185122-a985d3407aa7",
 )
+
+go_repository(
+    name = "com_github_skratchdot_open_golang",
+    importpath = "github.com/skratchdot/open-golang",
+    sum = "h1:VAzdS5Nw68fbf5RZ8RDVlUvPXNU6Z3jtPCK/qvm4FoQ=",
+    version = "v0.0.0-20190402232053-79abb63cd66e",
+)

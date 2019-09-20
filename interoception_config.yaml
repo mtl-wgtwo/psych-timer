@@ -1,10 +1,21 @@
-conditionInterval:
-  - 5
-  - 8
-  - 15
+intervals:
+  - label: FiveSecond
+    time: 5
+    playSound: true
+    pauseAfter: 10
+    inputMatcher: "([0-9]+)[\n\r]"
+  - label: EightSecond
+    time: 8
+    playSound: true
+    pauseAfter: 10
+    inputMatcher: "([0-9]+)[\n\r]"
+  - label: TenSecond
+    time: 10
+    playSound: true
+    pauseAfter: 10
+    inputMatcher: "([0-9]+)[\n\r]"
 randomizeInterval: true
-pauseInterval: 10
 playSound: true
 soundFile: "beep.wav"
 introText: "This is the Interoception condition"
-pauseInputMatcher: "([0-9]+)[\n\r]"
+studyLabel: "Interoception"

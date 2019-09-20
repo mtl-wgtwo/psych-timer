@@ -7,9 +7,11 @@ import (
 	"net/http"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/docopt/docopt-go"
 	"github.com/gorilla/websocket"
+	"github.com/skratchdot/open-golang/open"
 	"github.com/spf13/viper"
 )
 
@@ -94,6 +96,7 @@ func handleActions() {
 	for {
 		// Grab the next message from the broadcast channel
 		msg := <-actionChan
+		fmt.Printf("Handling message %+v\n", msg)
 
 		if msg.Action == "START" {
 			go client.RunOne(msg.SubjectID)
@@ -108,14 +111,20 @@ func handleActions() {
 
 func handleServerMessages() {
 	for {
-		sMsg := <-serverChan
+		msg := <-serverChan
+		fmt.Printf("Server message %+v\n", msg)
 
-		err := client.conn.WriteJSON(sMsg)
+		err := client.conn.WriteJSON(msg)
 		if err != nil {
 			log.Printf("error: %v", err)
 			client.conn.Close()
 		}
 	}
+}
+
+func sleepAndOpen() {
+	time.Sleep(time.Duration(200) * time.Millisecond)
+	open.Start("http://localhost:8080")
 }
 
 func main() {
@@ -151,6 +160,7 @@ Usage:
 
 	go handleActions()
 	go handleServerMessages()
+	go sleepAndOpen()
 	err = http.ListenAndServe(":8080", nil)
 	if err != nil {
 		log.Fatal("ListenAndServe: ", err)

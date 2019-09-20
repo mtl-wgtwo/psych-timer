@@ -8,8 +8,9 @@ go_library(
     name = "go_default_library",
     srcs = [
         "main.go",
+        "mindware_emitter.go",
         "psych_timer.go",
-        ":static"
+        ":static",  # keep
     ],
     importpath = "github.com/robothor/psych-timer",
     visibility = ["//visibility:private"],
@@ -20,6 +21,7 @@ go_library(
         "@com_github_faiface_beep//wav:go_default_library",
         "@com_github_gorilla_websocket//:go_default_library",
         "@com_github_mitchellh_copystructure//:go_default_library",
+        "@com_github_skratchdot_open_golang//open:go_default_library",
         "@com_github_spf13_viper//:go_default_library",
     ],
 )
@@ -29,7 +31,7 @@ go_binary(
     data = [
         "beep.wav",
         "interoception_config.yaml",
-        "hrv_config.yaml"
+        "hrv_config.yaml",
     ],
     embed = [
         ":go_default_library",

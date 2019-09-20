@@ -1,10 +1,18 @@
-conditionInterval:
-  - 300
-  - 300
-  - 300
-randomizeInterval: false
-pauseInterval: 30
-playSound: true
+--- 
+intervals:
+  - label: Baseline
+    time: 300
+    playSound: true
+    pauseAfter: 30
+  - label: Condition
+    time: 300
+    playSound: true
+    pauseAfter: 30
+    inputMatcher: "([0-9]+)[\n\r]"
+  - label: Return
+    time: 300
+    playSound: true
+randomizeIntervals: false
 soundFile: "beep.wav"
 introText: "This is the HRV condition"
-pauseInputMatcher: "([0-9]+)[\n\r]"
+studyLabel: "HRV"

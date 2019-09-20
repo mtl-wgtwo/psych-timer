@@ -15,37 +15,57 @@ import (
 	"github.com/mitchellh/copystructure"
 )
 
+// label: Baseline
+// time: 300
+// playSound: true
+// pauseAfter: 30
+// inputMatcher: "([0-9]+)[\n\r]"
+type Interval struct {
+	Label        string         `yaml:"label,omitempty"`
+	Time         int            `yaml:"time,omitempty"` //seconds
+	PlaySound    bool           `yaml:"playSound,omitempty"`
+	PauseAfter   int            `yaml:"pauseAfter,omitempty"` //seconds
+	InputMatcher string         `yaml:"inputMatcher,omitempty"`
+	regexMatcher *regexp.Regexp `yaml:"regexMatcher,omitempty"`
+}
+
 type Config struct {
-	ConditionInterval []int  `yaml:"conditionInterval,omitempty"`
-	RandomizeInterval bool   `yaml:"randomizeInterval,omitempty"`
-	PauseInterval     int    `yaml:"pauseInterval,omitempty"`
-	PlaySound         bool   `yaml:"playSound,omitempty"`
-	SoundFile         string `yaml:"soundFile,omitempty"`
-	PauseInputMatcher string `yaml:"pauseInputMatcher,omitempty"`
+	Intervals         []Interval `yaml:"intervals,omitempty"`
+	RandomizeInterval bool       `yaml:"randomizeInterval,omitempty"`
+	SoundFile         string     `yaml:"soundFile,omitempty"`
+	StudyLabel        string     `yaml:"studyLabel,omitempty"`
 }
 
 type PsychTimer struct {
-	config      Config
-	soundStream beep.StreamSeekCloser
-	soundFormat beep.Format
-	conn        *websocket.Conn
-	regex       *regexp.Regexp
-	matches     []string
-	matchBytes  []byte
-	ch          chan ServerMessage
+	config          Config
+	soundStream     beep.StreamSeekCloser
+	soundFormat     beep.Format
+	conn            *websocket.Conn
+	matches         []string
+	matchBytes      []byte
+	ch              chan ServerMessage
+	currentInterval *Interval
+	currentFile     *MindwareFile
 }
 
 func NewPsychTimer(c Config, conn *websocket.Conn, ch chan ServerMessage) *PsychTimer {
 	t, _ := copystructure.Copy(c)
 	n := t.(Config)
 
-	if n.RandomizeInterval {
-		rand.Seed(time.Now().UnixNano())
+	for i, interval := range n.Intervals {
+		if interval.InputMatcher != "" {
+			n.Intervals[i].regexMatcher = regexp.MustCompile(interval.InputMatcher)
+		}
+	}
 
-		rand.Shuffle(len(n.ConditionInterval), func(i, j int) {
-			n.ConditionInterval[i], n.ConditionInterval[j] = n.ConditionInterval[j], n.ConditionInterval[i]
+	if n.RandomizeInterval {
+		r := rand.New(rand.NewSource(time.Now().UnixNano()))
+
+		r.Shuffle(len(n.Intervals), func(i, j int) {
+			n.Intervals[i], n.Intervals[j] = n.Intervals[j], n.Intervals[i]
 		})
 	}
+
 	f, err := os.Open(n.SoundFile)
 	if err != nil {
 		log.Fatal(err)
@@ -56,17 +76,13 @@ func NewPsychTimer(c Config, conn *websocket.Conn, ch chan ServerMessage) *Psych
 		log.Fatal(err)
 	}
 
-	var matcher *regexp.Regexp
-	if n.PauseInputMatcher != "" {
-		matcher = regexp.MustCompile(n.PauseInputMatcher)
-	}
+	fmt.Printf("Final config: %+v\n", n)
 
 	return &PsychTimer{
 		config:      n,
 		soundStream: streamer,
 		soundFormat: format,
 		conn:        conn,
-		regex:       matcher,
 		ch:          ch}
 }
 
@@ -83,31 +99,44 @@ func (p *PsychTimer) RunOne(ID string) {
 		Kind:    "BEGIN",
 		Message: ID,
 	}
-	for _, v := range p.config.ConditionInterval {
+	p.currentFile = NewMindwareFile(ID + ".tsv")
+	defer p.currentFile.Close()
+
+	for i, v := range p.config.Intervals {
+		p.currentInterval = &p.config.Intervals[i]
 		p.ch <- ServerMessage{
 			Kind:    "INFO",
-			Message: fmt.Sprintf("Starting new interval for %s", ID),
+			Message: fmt.Sprintf("Starting new interval for %s: %s", ID, v.Label),
 		}
-		if p.config.PlaySound {
+		p.currentFile.WriteEvent("PsychTimer/"+p.config.StudyLabel+" Event", "Start Interval: "+v.Label)
+
+		// Interval starts
+		if v.PlaySound {
 			p.playBeep()
 		}
 		p.ch <- ServerMessage{
 			Kind:    "INFO",
-			Message: fmt.Sprintf("Waiting %d seconds for math\n", v),
+			Message: fmt.Sprintf("Interval wait period: %d seconds\n", v.Time),
 		}
-		time.Sleep(time.Duration(v) * time.Second)
-		if p.config.PlaySound {
+		time.Sleep(time.Duration(v.Time) * time.Second)
+		if v.PlaySound {
 			p.playBeep()
 		}
+
+		// Optional pause interval
+		if v.PauseAfter > 0 {
+			p.ch <- ServerMessage{
+				Kind:    "INFO",
+				Message: fmt.Sprintf("Interval post wait period: %d seconds\n", v.PauseAfter),
+			}
+			p.currentFile.WriteEvent("PsychTimer/"+p.config.StudyLabel+" Event", "Start Pause: "+v.Label)
+			time.Sleep(time.Duration(v.PauseAfter) * time.Second)
+		}
 		p.ch <- ServerMessage{
 			Kind:    "INFO",
-			Message: fmt.Sprintf("Waiting %d seconds for input\n", p.config.PauseInterval),
+			Message: fmt.Sprintf("Done with interval for %s: %s", ID, v.Label),
 		}
-		time.Sleep(time.Duration(p.config.PauseInterval) * time.Second)
-		p.ch <- ServerMessage{
-			Kind:    "INFO",
-			Message: fmt.Sprintf("Done with interval for %s", ID),
-		}
+		p.currentFile.WriteEvent("PsychTimer/"+p.config.StudyLabel+" Event", "End Interval: "+v.Label)
 	}
 	p.ch <- ServerMessage{
 		Kind:    "END",
@@ -118,16 +147,19 @@ func (p *PsychTimer) RunOne(ID string) {
 func (p *PsychTimer) AddKey(k string, b byte) {
 	p.matchBytes = append(p.matchBytes, b)
 	fmt.Println(p.matchBytes)
+	r := p.currentInterval.regexMatcher
 
-	if p.regex != nil {
-		m := p.regex.Find(p.matchBytes)
-		if m != nil {
-			p.matches = append(p.matches, string(m))
+	if r != nil {
+		m := r.FindSubmatch(p.matchBytes)
+		if m != nil && len(m) == 2 {
+			p.matches = append(p.matches, string(m[1]))
 			p.matchBytes = nil
+			val := p.matches[len(p.matches)-1]
 			p.ch <- ServerMessage{
 				Kind:    "INFO",
-				Message: fmt.Sprintf("Matched number: %s", p.matches[len(p.matches)-1]),
+				Message: fmt.Sprintf("Matched number: %s", val),
 			}
+			p.currentFile.WriteEvent("PsychTimer/"+p.config.StudyLabel+" Value", val)
 		}
 	}
 }
