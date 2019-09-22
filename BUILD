@@ -45,20 +45,29 @@ go_embed_data(
     string = True,
 )
 
-
-
-pkg_zip(
-    name = "zip",
-    extension = "zip",
-    srcs = [
-        ":psych-timer",
-    ] + glob(["sounds/*.wav"]) + glob(["config/*.yaml"]),
+pkg_tar(
+    name = "sounds",
+    extension = "tgz",
+    package_dir = "sounds",
+    srcs = glob(["sounds/*.wav"])
 )
 
 pkg_tar(
-    name = "tgz",
+    name = "configs",
+    extension = "tgz",
+    package_dir = "config",
+    srcs = glob(["config/*.yaml"])
+)
+
+
+pkg_tar(
+    name = "psych-timer-tgz",
     extension = "tgz",
     srcs = [
         ":psych-timer",
-    ] + glob(["sounds/*.wav"]) + glob(["config/*.yaml"]),
+    ],
+    deps = [
+        ":sounds",
+        ":configs"
+    ]
 )
