@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -16,6 +15,7 @@ import (
 	"github.com/faiface/beep/wav"
 	"github.com/gorilla/websocket"
 	"github.com/mitchellh/copystructure"
+	log "github.com/sirupsen/logrus"
 )
 
 type Pause struct {
@@ -79,7 +79,7 @@ func (p *PsychTimer) maybeShuffleIntervals() {
 }
 
 func loadSoundConfig(file string) *soundConfig {
-	fmt.Println("Loading sound file:", file)
+	log.Debugln("Loading sound file:", file)
 	f, err := os.Open(file)
 	if err != nil {
 		log.Fatal(err)
@@ -106,7 +106,7 @@ func NewPsychTimer(c Config, conn *websocket.Conn, ch chan ServerMessage) *Psych
 
 	n.ResultsDir = filepath.Clean(n.ResultsDir)
 
-	fmt.Printf("Final config: %+v\n", n)
+	log.Debugf("Final config: %+v\n", n)
 
 	return &PsychTimer{
 		config:     n,
@@ -119,7 +119,7 @@ func NewPsychTimer(c Config, conn *websocket.Conn, ch chan ServerMessage) *Psych
 }
 
 func (p *PsychTimer) playBeep(s *soundConfig) {
-	fmt.Printf("Playing sound %s\n", s.file)
+	log.Debugf("Playing sound %s\n", s.file)
 
 	s.streamer.Seek(0)
 	speaker.Init(s.format.SampleRate, s.format.SampleRate.N(time.Second/10))
@@ -169,10 +169,10 @@ func (p *PsychTimer) handlePauses(v Interval, pauses []*Pause) (isBreak bool) {
 				Kind:    "INFO",
 				Message: fmt.Sprintf("Waiting for INPUT from subject"),
 			}
-			fmt.Printf("Waiting for input with %+v\n", pause)
+			log.Debugf("Waiting for input with %+v\n", pause)
 			<-pause.wait
 		default:
-			fmt.Println("Unknown pause condition:", pause.Type)
+			log.Debugln("Unknown pause condition:", pause.Type)
 		}
 
 	}
@@ -239,7 +239,7 @@ func (p *PsychTimer) AddKey(k string, b byte) {
 	p.matchMutex.Lock()
 	defer p.matchMutex.Unlock()
 	p.matchBytes = append(p.matchBytes, b)
-	fmt.Println(p.matchBytes)
+	log.Debugln(p.matchBytes)
 	r := p.currentInterval.regexMatcher
 
 	if r != nil {
@@ -253,7 +253,7 @@ func (p *PsychTimer) AddKey(k string, b byte) {
 				Message: fmt.Sprintf("Matched number: %s", val),
 			}
 			p.currentFile.WriteEvent("PsychTimer/"+p.config.StudyLabel+" Value", val)
-			fmt.Printf("Matched number with current pause: %+v\n", p.currentPause)
+			log.Debugf("Matched number with current pause: %+v\n", p.currentPause)
 			if p.currentPause != nil && p.currentPause.Type == "input" {
 				p.Continue()
 			}

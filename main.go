@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"mime"
 	"net/http"
 	"path/filepath"
@@ -11,6 +10,7 @@ import (
 
 	"github.com/docopt/docopt-go"
 	"github.com/gorilla/websocket"
+	log "github.com/sirupsen/logrus"
 	"github.com/skratchdot/open-golang/open"
 	"github.com/spf13/viper"
 )
@@ -55,11 +55,9 @@ func (m *mapHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		upath = "index.html"
 	}
 	upath = strings.TrimPrefix(m.prefix, "/") + upath
-	//	fmt.Printf("Trying to read %s\n", upath)
-	//	fmt.Printf("have: %+v\n", m.root[upath])
 	ctype := mime.TypeByExtension(filepath.Ext(upath))
-	//	fmt.Printf("Detected content type: %+v\n", ctype)
 	w.Header().Set("Content-Type", ctype)
+	w.Header().Set("Feature-Policy", "autoplay 'self'")
 	fmt.Fprint(w, m.root[upath])
 }
 
@@ -72,7 +70,7 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 	// Make sure we close the connection when the function returns
 	defer ws.Close()
 
-	fmt.Println("Upgraded to ws!")
+	log.Debug("Upgraded to ws!")
 	// Register our new client
 	client = NewPsychTimer(c, ws, serverChan)
 	client.ch <- ServerMessage{
@@ -89,7 +87,7 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 			client = nil
 			break
 		}
-		fmt.Printf("Received message %+v\n", msg)
+		log.Debugf("Received message %+v\n", msg)
 		// Send the newly received message to the broadcast channel
 		actionChan <- msg
 	}
@@ -99,7 +97,7 @@ func handleActions() {
 	for {
 		// Grab the next message from the broadcast channel
 		msg := <-actionChan
-		fmt.Printf("Handling message %+v\n", msg)
+		log.Debugf("Handling message %+v\n", msg)
 
 		switch msg.Action {
 		case "START":
@@ -107,12 +105,12 @@ func handleActions() {
 		case "CANCEL":
 			client.Cancel(msg.SubjectID)
 		case "KEY":
-			fmt.Printf("Received key %s (keycode %d) for subject %s\n", msg.Content, msg.KeyCode, msg.SubjectID)
+			log.Debugf("Received key %s (keycode %d) for subject %s\n", msg.Content, msg.KeyCode, msg.SubjectID)
 			client.AddKey(msg.Content, msg.KeyCode)
 		case "CONTINUE":
 			client.Continue()
 		default:
-			fmt.Println("Unknown message from the client: ", msg.Action)
+			log.Debugln("Unknown message from the client: ", msg.Action)
 		}
 	}
 }
@@ -120,7 +118,7 @@ func handleActions() {
 func handleServerMessages() {
 	for {
 		msg := <-serverChan
-		fmt.Printf("Server message %+v\n", msg)
+		log.Debugf("Server message %+v\n", msg)
 
 		err := client.conn.WriteJSON(msg)
 		if err != nil {
@@ -139,12 +137,22 @@ func main() {
 	usage := `Psych Timer
 	
 Usage:
-	psych-timer <config>
-	
+	psych-timer <config> [--debug]
+	psych-timer -h | --help
+	psych-timer --version
+
+Options:
+	-h --help     Show this screen.
+	--version     Show version.
+	--debug       Turn on debug messages.
 `
 
 	arguments, _ := docopt.ParseDoc(usage)
-	fmt.Printf("%+v\n", arguments)
+	log.Debugf("%+v\n", arguments)
+
+	if arguments["--debug"].(bool) {
+		log.SetLevel(log.DebugLevel)
+	}
 
 	viper.SetConfigName(arguments["<config>"].(string)) // name of config file (without extension)
 	viper.AddConfigPath("$HOME/.psych_timer")           // call multiple times to add many search paths
@@ -159,7 +167,7 @@ Usage:
 		fmt.Errorf("unable to decode into struct, %v", err)
 	}
 
-	fmt.Printf("%+v\n", c)
+	log.Debugf("%+v\n", c)
 
 	http.Handle("/", MapServer(Data, "/static/"))
 

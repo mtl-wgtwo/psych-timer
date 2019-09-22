@@ -1,5 +1,7 @@
 load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library", "go_embed_data")
 load("@bazel_gazelle//:def.bzl", "gazelle")
+load("@rules_pkg//:pkg.bzl", "pkg_zip", "pkg_tar")
+
 
 # gazelle:prefix github.com/robothor/psych-timer
 gazelle(name = "gazelle")
@@ -21,6 +23,7 @@ go_library(
         "@com_github_faiface_beep//wav:go_default_library",
         "@com_github_gorilla_websocket//:go_default_library",
         "@com_github_mitchellh_copystructure//:go_default_library",
+        "@com_github_sirupsen_logrus//:go_default_library",
         "@com_github_skratchdot_open_golang//open:go_default_library",
         "@com_github_spf13_viper//:go_default_library",
     ],
@@ -28,12 +31,7 @@ go_library(
 
 go_binary(
     name = "psych-timer",
-    data = [
-        "beep.wav",
-        "beepbeep.wav",
-        "interoception_config.yaml",
-        "hrv_config.yaml",
-    ],
+    data = glob(["sounds/*.wav"]) + glob(["config/*.yaml"]),
     embed = [
         ":go_default_library",
     ],
@@ -45,4 +43,22 @@ go_embed_data(
     package = "main",
     srcs = glob(["static/**"]),
     string = True,
+)
+
+
+
+pkg_zip(
+    name = "zip",
+    extension = "zip",
+    srcs = [
+        ":psych-timer",
+    ] + glob(["sounds/*.wav"]) + glob(["config/*.yaml"]),
+)
+
+pkg_tar(
+    name = "tgz",
+    extension = "tgz",
+    srcs = [
+        ":psych-timer",
+    ] + glob(["sounds/*.wav"]) + glob(["config/*.yaml"]),
 )

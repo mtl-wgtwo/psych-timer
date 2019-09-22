@@ -25,8 +25,8 @@ intervals:
         time: 10
 randomizeInterval: true
 playSound: true
-preSoundFile: "beep.wav"
-postSoundFile: "beepbeep.wav"
+preSoundFile: "sounds/pre.wav"
+postSoundFile: "sounds/post.wav"
 introText: "This is the Interoception condition"
 studyLabel: "Interoception"
 resultsDir: "/Users/mtl/tmp/results"

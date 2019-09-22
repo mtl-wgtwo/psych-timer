@@ -17,3 +17,5 @@ bazel-*
 
 # Editor stuff
 .vscode
+
+dist

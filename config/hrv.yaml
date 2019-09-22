@@ -51,8 +51,8 @@ intervals:
       <p><b>WHAT THE PROGRAM DOES</b>: gives a PEEP when testleader hits button after instructions. Makes a
       timed event for this PEEP. Makes another TWO PEEPs after 5 minutes.</p>
 randomizeIntervals: false
-preSoundFile: "beep.wav"
-postSoundFile: "beepbeep.wav"
+preSoundFile: "sounds/pre.wav"
+postSoundFile: "sounds/post.wav"
 introText: "This is the HRV condition"
 studyLabel: "HRV"
 resultsDir: "/Users/mtl/tmp/results"
