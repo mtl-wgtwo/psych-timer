@@ -154,11 +154,11 @@ Options:
 		log.SetLevel(log.DebugLevel)
 	}
 
-	viper.SetConfigName(arguments["<config>"].(string)) // name of config file (without extension)
-	viper.AddConfigPath("$HOME/.psych_timer")           // call multiple times to add many search paths
-	viper.AddConfigPath(".")                            // optionally look for config in the working directory
-	err := viper.ReadInConfig()                         // Find and read the config file
-	if err != nil {                                     // Handle errors reading the config file
+	viper.SetConfigName(arguments["<config>"].(string))       // name of config file (without extension)
+	viper.AddConfigPath(filepath.Clean("$HOME/.psych_timer")) // call multiple times to add many search paths
+	viper.AddConfigPath(filepath.Clean("."))                  // optionally look for config in the working directory
+	err := viper.ReadInConfig()                               // Find and read the config file
+	if err != nil {                                           // Handle errors reading the config file
 		panic(fmt.Errorf("fatal error config file: %s", err))
 	}
 
