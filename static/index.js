@@ -5,15 +5,17 @@ new Vue({
     ws: null, // Our websocket
     subjectId: null, // Id of the subject
     started: false,
-    serverMessages: ""
+    serverMessages: "",
+    serverInstructions: "",
+    pauseInstructions: ""
   },
 
   created: function () {
     var self = this;
-    this.ws = new WebSocket('ws://' + window.location.host + '/ws');
+    self.ws = new WebSocket('ws://' + window.location.host + '/ws');
     window.addEventListener('keydown', (e) => {
-      if (this.started) {
-        this.ws.send(
+      if (self.started) {
+        self.ws.send(
           JSON.stringify({
             subjectId: this.subjectId,
             action: "KEY",
@@ -28,15 +30,42 @@ new Vue({
       console.log(msg)
       switch (msg.kind) {
         case "INFO":
-          self.serverMessages += msg.message + '<br/>'; // Parse emojis
-
+          self.serverMessages += msg.message + '<br/>';
           var element = document.getElementById('server-messages');
-          element.scrollTop = element.scrollHeight; // Auto scroll to the bottom
+          element.scrollTop = element.scrollHeight; // Auto scroll to the bottom    
+          break;
+        case "INSTRUCTIONS":
+          self.serverInstructions = '<span class="card-title">Instructions</span>' + msg.message;
+          break;
+        case "WAIT":
+          // Trigger the modal dialog here
+          self.pauseInstructions = '<span class="card-title">Instructions</span>' + msg.message;
+          var elems = document.querySelectorAll('.modal');
+          var instances = M.Modal.init(elems, {
+            onOpenStart: () => {
+              console.log("Opening!")
+            },
+            onCloseEnd: () => {
+              console.log("Closing!")
+              self.ws.send(
+                JSON.stringify({
+                  subjectId: this.subjectId,
+                  action: "CONTINUE"
+                })
+              );
+            }
+          });
+          instances[0].open()
           break;
         case "BEGIN":
+          self.serverMessages += "Beginning for id = " + msg.message + '<br/>';
           break;
         case "END":
-          this.started = false;
+          self.serverMessages += "Ending for id = " + msg.message + '<br/>';
+          self.started = false;
+          break;
+        case "CANCEL":
+          self.serverMessages += "Canceled for id = " + msg.message + '<br/>';
           break;
       }
     });
@@ -44,6 +73,7 @@ new Vue({
 
   methods: {
     start: function () {
+      var self = this;
       if (!this.subjectId) {
         Materialize.toast('You must enter an id for the subject', 2000);
         return
@@ -51,11 +81,20 @@ new Vue({
       this.subjectId = $('<p>').html(this.subjectId).text();
       this.ws.send(
         JSON.stringify({
-          subjectId: this.subjectId,
+          subjectId: self.subjectId,
           action: "START"
         })
       );
-      this.started = true;
+      self.started = true;
+    },
+    cancel: function () {
+      var self = this;
+      this.ws.send(
+        JSON.stringify({
+          subjectId: self.subjectId,
+          action: "CANCEL"
+        })
+      );
     },
   }
 });

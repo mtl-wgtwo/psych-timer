@@ -73,9 +73,12 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 	defer ws.Close()
 
 	fmt.Println("Upgraded to ws!")
-
 	// Register our new client
 	client = NewPsychTimer(c, ws, serverChan)
+	client.ch <- ServerMessage{
+		Kind:    "INSTRUCTIONS",
+		Message: client.config.Instructions,
+	}
 
 	for {
 		var msg ClientMessage
@@ -86,7 +89,7 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 			client = nil
 			break
 		}
-		fmt.Printf("Received message %+v", msg)
+		fmt.Printf("Received message %+v\n", msg)
 		// Send the newly received message to the broadcast channel
 		actionChan <- msg
 	}
@@ -98,13 +101,18 @@ func handleActions() {
 		msg := <-actionChan
 		fmt.Printf("Handling message %+v\n", msg)
 
-		if msg.Action == "START" {
+		switch msg.Action {
+		case "START":
 			go client.RunOne(msg.SubjectID)
-
-		}
-		if msg.Action == "KEY" {
+		case "CANCEL":
+			client.Cancel(msg.SubjectID)
+		case "KEY":
 			fmt.Printf("Received key %s (keycode %d) for subject %s\n", msg.Content, msg.KeyCode, msg.SubjectID)
 			client.AddKey(msg.Content, msg.KeyCode)
+		case "CONTINUE":
+			client.Continue()
+		default:
+			fmt.Println("Unknown message from the client: ", msg.Action)
 		}
 	}
 }

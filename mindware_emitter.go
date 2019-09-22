@@ -44,7 +44,7 @@ func check(e error) {
 }
 
 func NewMindwareFile(name string) *MindwareFile {
-	f, err := os.Create("./" + name)
+	f, err := os.Create(name)
 	check(err)
 
 	m := &MindwareFile{

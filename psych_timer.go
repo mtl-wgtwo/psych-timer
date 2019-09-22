@@ -1,11 +1,14 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"math/rand"
 	"os"
+	"path/filepath"
 	"regexp"
+	"sync"
 	"time"
 
 	"github.com/faiface/beep"
@@ -15,37 +18,80 @@ import (
 	"github.com/mitchellh/copystructure"
 )
 
-// label: Baseline
-// time: 300
-// playSound: true
-// pauseAfter: 30
-// inputMatcher: "([0-9]+)[\n\r]"
+type Pause struct {
+	Type string `yaml:"type,omitempty"`
+	Time int    `yaml:"time,omitempty"` //seconds
+	wait chan bool
+}
+
 type Interval struct {
-	Label        string         `yaml:"label,omitempty"`
-	Time         int            `yaml:"time,omitempty"` //seconds
-	PlaySound    bool           `yaml:"playSound,omitempty"`
-	PauseAfter   int            `yaml:"pauseAfter,omitempty"` //seconds
-	InputMatcher string         `yaml:"inputMatcher,omitempty"`
+	Label        string   `yaml:"label,omitempty"`
+	Time         int      `yaml:"time,omitempty"` //seconds
+	PlaySound    bool     `yaml:"playSound,omitempty"`
+	PauseAfter   []*Pause `yaml:"pauseAfter,omitempty"`
+	PauseBefore  []*Pause `yaml:"pauseBefore,omitempty"`
+	InputMatcher string   `yaml:"inputMatcher,omitempty"`
+	Instructions string   `yaml:"instructions,omitempty"`
+
 	regexMatcher *regexp.Regexp `yaml:"regexMatcher,omitempty"`
 }
 
 type Config struct {
 	Intervals         []Interval `yaml:"intervals,omitempty"`
 	RandomizeInterval bool       `yaml:"randomizeInterval,omitempty"`
-	SoundFile         string     `yaml:"soundFile,omitempty"`
+	PreSoundFile      string     `yaml:"preSoundFile,omitempty"`
+	PostSoundFile     string     `yaml:"postSoundFile,omitempty"`
 	StudyLabel        string     `yaml:"studyLabel,omitempty"`
+	ResultsDir        string     `yaml:"resultsDir,omitempty"`
+	Instructions      string     `yaml:"instructions,omitempty"`
+}
+
+type soundConfig struct {
+	file     string
+	streamer beep.StreamSeekCloser
+	format   beep.Format
 }
 
 type PsychTimer struct {
 	config          Config
-	soundStream     beep.StreamSeekCloser
-	soundFormat     beep.Format
 	conn            *websocket.Conn
+	preSound        *soundConfig
+	postSound       *soundConfig
 	matches         []string
 	matchBytes      []byte
+	matchMutex      *sync.Mutex
 	ch              chan ServerMessage
 	currentInterval *Interval
 	currentFile     *MindwareFile
+	ctx             context.Context
+	cancel          context.CancelFunc
+	currentPause    *Pause
+}
+
+func (p *PsychTimer) maybeShuffleIntervals() {
+	if p.config.RandomizeInterval {
+		r := rand.New(rand.NewSource(time.Now().UnixNano()))
+
+		r.Shuffle(len(p.config.Intervals), func(i, j int) {
+			p.config.Intervals[i], p.config.Intervals[j] = p.config.Intervals[j], p.config.Intervals[i]
+		})
+	}
+}
+
+func loadSoundConfig(file string) *soundConfig {
+	fmt.Println("Loading sound file:", file)
+	f, err := os.Open(file)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	streamer, format, err := wav.Decode(f)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	return &soundConfig{file, streamer, format}
+
 }
 
 func NewPsychTimer(c Config, conn *websocket.Conn, ch chan ServerMessage) *PsychTimer {
@@ -58,51 +104,95 @@ func NewPsychTimer(c Config, conn *websocket.Conn, ch chan ServerMessage) *Psych
 		}
 	}
 
-	if n.RandomizeInterval {
-		r := rand.New(rand.NewSource(time.Now().UnixNano()))
-
-		r.Shuffle(len(n.Intervals), func(i, j int) {
-			n.Intervals[i], n.Intervals[j] = n.Intervals[j], n.Intervals[i]
-		})
-	}
-
-	f, err := os.Open(n.SoundFile)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	streamer, format, err := wav.Decode(f)
-	if err != nil {
-		log.Fatal(err)
-	}
+	n.ResultsDir = filepath.Clean(n.ResultsDir)
 
 	fmt.Printf("Final config: %+v\n", n)
 
 	return &PsychTimer{
-		config:      n,
-		soundStream: streamer,
-		soundFormat: format,
-		conn:        conn,
-		ch:          ch}
+		config:     n,
+		preSound:   loadSoundConfig(n.PreSoundFile),
+		postSound:  loadSoundConfig(n.PostSoundFile),
+		conn:       conn,
+		ch:         ch,
+		matchMutex: &sync.Mutex{},
+	}
 }
 
-func (p *PsychTimer) playBeep() {
-	fmt.Printf("Playing sound %s\n", p.config.SoundFile)
+func (p *PsychTimer) playBeep(s *soundConfig) {
+	fmt.Printf("Playing sound %s\n", s.file)
 
-	p.soundStream.Seek(0)
-	speaker.Init(p.soundFormat.SampleRate, p.soundFormat.SampleRate.N(time.Second/10))
-	speaker.Play(p.soundStream)
+	s.streamer.Seek(0)
+	speaker.Init(s.format.SampleRate, s.format.SampleRate.N(time.Second/10))
+	speaker.Play(s.streamer)
+}
+
+func cancelableSleep(ctx context.Context, sleep int) (isBreak bool) {
+	select {
+	case <-ctx.Done():
+		isBreak = true
+	case <-time.After(time.Duration(sleep) * time.Second):
+		isBreak = false
+	}
+	return
+}
+
+func (p *PsychTimer) handlePauses(v Interval, pauses []*Pause) (isBreak bool) {
+	defer func() {
+		p.currentPause = nil
+	}()
+
+	for _, pause := range pauses {
+		p.currentPause = pause
+		switch pause.Type {
+		case "wait":
+			// Send message to UI, wait for continue
+			pause.wait = make(chan bool, 1)
+			p.ch <- ServerMessage{
+				Kind:    "WAIT",
+				Message: v.Instructions,
+			}
+			<-pause.wait
+		case "time":
+			p.ch <- ServerMessage{
+				Kind:    "INFO",
+				Message: fmt.Sprintf("Interval post wait period: %d seconds", pause.Time),
+			}
+			p.currentFile.WriteEvent("PsychTimer/"+p.config.StudyLabel+" Event", "Start Pause: "+v.Label)
+			isBreak = cancelableSleep(p.ctx, pause.Time)
+			if isBreak {
+				return
+			}
+		case "input":
+			pause.wait = make(chan bool, 1)
+
+			p.ch <- ServerMessage{
+				Kind:    "INFO",
+				Message: fmt.Sprintf("Waiting for INPUT from subject"),
+			}
+			fmt.Printf("Waiting for input with %+v\n", pause)
+			<-pause.wait
+		default:
+			fmt.Println("Unknown pause condition:", pause.Type)
+		}
+
+	}
+
+	return
 }
 
 func (p *PsychTimer) RunOne(ID string) {
+	p.maybeShuffleIntervals()
+	p.ctx, p.cancel = context.WithCancel(context.Background())
+	isCanceled := false
 	p.ch <- ServerMessage{
 		Kind:    "BEGIN",
 		Message: ID,
 	}
-	p.currentFile = NewMindwareFile(ID + ".tsv")
+	p.currentFile = NewMindwareFile(filepath.Join(p.config.ResultsDir, ID+".tsv"))
 	defer p.currentFile.Close()
 
 	for i, v := range p.config.Intervals {
+		p.clearInput()
 		p.currentInterval = &p.config.Intervals[i]
 		p.ch <- ServerMessage{
 			Kind:    "INFO",
@@ -110,28 +200,29 @@ func (p *PsychTimer) RunOne(ID string) {
 		}
 		p.currentFile.WriteEvent("PsychTimer/"+p.config.StudyLabel+" Event", "Start Interval: "+v.Label)
 
+		p.handlePauses(v, v.PauseBefore)
+
 		// Interval starts
 		if v.PlaySound {
-			p.playBeep()
+			p.playBeep(p.preSound)
 		}
 		p.ch <- ServerMessage{
 			Kind:    "INFO",
-			Message: fmt.Sprintf("Interval wait period: %d seconds\n", v.Time),
+			Message: fmt.Sprintf("Starting interval wait period: %d seconds", v.Time),
 		}
-		time.Sleep(time.Duration(v.Time) * time.Second)
+		isCanceled = cancelableSleep(p.ctx, v.Time)
+		if isCanceled {
+			return
+		}
 		if v.PlaySound {
-			p.playBeep()
+			p.playBeep(p.postSound)
+		}
+		p.ch <- ServerMessage{
+			Kind:    "INFO",
+			Message: fmt.Sprintf("Ending interval wait period: %d seconds", v.Time),
 		}
 
-		// Optional pause interval
-		if v.PauseAfter > 0 {
-			p.ch <- ServerMessage{
-				Kind:    "INFO",
-				Message: fmt.Sprintf("Interval post wait period: %d seconds\n", v.PauseAfter),
-			}
-			p.currentFile.WriteEvent("PsychTimer/"+p.config.StudyLabel+" Event", "Start Pause: "+v.Label)
-			time.Sleep(time.Duration(v.PauseAfter) * time.Second)
-		}
+		p.handlePauses(v, v.PauseAfter)
 		p.ch <- ServerMessage{
 			Kind:    "INFO",
 			Message: fmt.Sprintf("Done with interval for %s: %s", ID, v.Label),
@@ -145,6 +236,8 @@ func (p *PsychTimer) RunOne(ID string) {
 }
 
 func (p *PsychTimer) AddKey(k string, b byte) {
+	p.matchMutex.Lock()
+	defer p.matchMutex.Unlock()
 	p.matchBytes = append(p.matchBytes, b)
 	fmt.Println(p.matchBytes)
 	r := p.currentInterval.regexMatcher
@@ -160,6 +253,37 @@ func (p *PsychTimer) AddKey(k string, b byte) {
 				Message: fmt.Sprintf("Matched number: %s", val),
 			}
 			p.currentFile.WriteEvent("PsychTimer/"+p.config.StudyLabel+" Value", val)
+			fmt.Printf("Matched number with current pause: %+v\n", p.currentPause)
+			if p.currentPause != nil && p.currentPause.Type == "input" {
+				p.Continue()
+			}
 		}
+	}
+}
+
+func (p *PsychTimer) Continue() {
+	if p.currentPause.wait != nil {
+		p.currentPause.wait <- true
+	}
+}
+
+func (p *PsychTimer) clearInput() {
+	p.matchMutex.Lock()
+	defer p.matchMutex.Unlock()
+
+	p.matches = nil
+	p.matchBytes = nil
+}
+
+func (p *PsychTimer) Cancel(ID string) {
+	p.cancel()
+	p.ch <- ServerMessage{
+		Kind:    "CANCEL",
+		Message: ID,
+	}
+
+	p.ch <- ServerMessage{
+		Kind:    "END",
+		Message: ID,
 	}
 }

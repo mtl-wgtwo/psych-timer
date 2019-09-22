@@ -30,6 +30,7 @@ go_binary(
     name = "psych-timer",
     data = [
         "beep.wav",
+        "beepbeep.wav",
         "interoception_config.yaml",
         "hrv_config.yaml",
     ],

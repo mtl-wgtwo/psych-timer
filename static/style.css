@@ -8,9 +8,16 @@ main {
     flex: 1 0 auto;
 }
 
-#chat-messages {
+#server-instructions {
     min-height: 10vh;
-    height: 60vh;
+    height: 40vh;
+    width: 100%;
+    overflow-y: scroll;
+}
+
+#server-messages {
+    min-height: 10vh;
+    height: 20vh;
     width: 100%;
     overflow-y: scroll;
 }
