@@ -167,12 +167,13 @@ Options:
 	}
 	absHome, err := filepath.Abs(homeDir + "/.psych_timer")
 	absCurr, err := filepath.Abs(".")
+	cleanPath := filepath.Clean(arguments["<config>"].(string))
 
-	viper.SetConfigName(arguments["<config>"].(string)) // name of config file (without extension)
-	viper.AddConfigPath(absHome)                        // call multiple times to add many search paths
-	viper.AddConfigPath(absCurr)                        // optionally look for config in the working directory
-	err = viper.ReadInConfig()                          // Find and read the config file
-	if err != nil {                                     // Handle errors reading the config file
+	viper.SetConfigName(cleanPath) // name of config file (without extension)
+	viper.AddConfigPath(absHome)   // call multiple times to add many search paths
+	viper.AddConfigPath(absCurr)   // optionally look for config in the working directory
+	err = viper.ReadInConfig()     // Find and read the config file
+	if err != nil {                // Handle errors reading the config file
 		log.Fatalf("fatal error config file: %s", err)
 	}
 
