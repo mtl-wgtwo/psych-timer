@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 )
@@ -44,7 +45,9 @@ func check(e error) {
 }
 
 func NewMindwareFile(name string) *MindwareFile {
-	f, err := os.Create(name)
+	cleanName, err := filepath.Abs(name)
+	check(err)
+	f, err := os.Create(cleanName)
 	check(err)
 
 	m := &MindwareFile{

@@ -104,14 +104,27 @@ func NewPsychTimer(c Config, conn *websocket.Conn, ch chan ServerMessage) *Psych
 		}
 	}
 
-	n.ResultsDir = filepath.Clean(n.ResultsDir)
+	cleanDir, err := filepath.Abs(n.ResultsDir)
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+	n.ResultsDir = cleanDir
 
 	log.Debugf("Final config: %+v\n", n)
 
+	cleanPre, err := filepath.Abs(n.PreSoundFile)
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+	cleanPost, err := filepath.Abs(n.PostSoundFile)
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+
 	return &PsychTimer{
 		config:     n,
-		preSound:   loadSoundConfig(n.PreSoundFile),
-		postSound:  loadSoundConfig(n.PostSoundFile),
+		preSound:   loadSoundConfig(cleanPre),
+		postSound:  loadSoundConfig(cleanPost),
 		conn:       conn,
 		ch:         ch,
 		matchMutex: &sync.Mutex{},

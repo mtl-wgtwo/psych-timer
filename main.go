@@ -10,6 +10,7 @@ import (
 
 	"github.com/docopt/docopt-go"
 	"github.com/gorilla/websocket"
+	home "github.com/mitchellh/go-homedir"
 	log "github.com/sirupsen/logrus"
 	"github.com/skratchdot/open-golang/open"
 	"github.com/spf13/viper"
@@ -50,6 +51,7 @@ type mapHandler struct {
 }
 
 func (m *mapHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	log.Debug("Serving ", r.URL.Path)
 	upath := strings.TrimPrefix(r.URL.Path, "/")
 	if upath == "" {
 		upath = "index.html"
@@ -58,10 +60,12 @@ func (m *mapHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctype := mime.TypeByExtension(filepath.Ext(upath))
 	w.Header().Set("Content-Type", ctype)
 	w.Header().Set("Feature-Policy", "autoplay 'self'")
+	log.Debug("Fetching ", upath, ", data is ", m.root[upath])
 	fmt.Fprint(w, m.root[upath])
 }
 
 func handleConnections(w http.ResponseWriter, r *http.Request) {
+	log.Debug("handleConnections starting")
 	// Upgrade initial GET request to a websocket
 	ws, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -94,6 +98,8 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleActions() {
+
+	log.Debug("handleActions starting")
 	for {
 		// Grab the next message from the broadcast channel
 		msg := <-actionChan
@@ -116,6 +122,7 @@ func handleActions() {
 }
 
 func handleServerMessages() {
+	log.Debug("handleServerMessages starting")
 	for {
 		msg := <-serverChan
 		log.Debugf("Server message %+v\n", msg)
@@ -154,17 +161,24 @@ Options:
 		log.SetLevel(log.DebugLevel)
 	}
 
-	viper.SetConfigName(arguments["<config>"].(string))       // name of config file (without extension)
-	viper.AddConfigPath(filepath.Clean("$HOME/.psych_timer")) // call multiple times to add many search paths
-	viper.AddConfigPath(filepath.Clean("."))                  // optionally look for config in the working directory
-	err := viper.ReadInConfig()                               // Find and read the config file
-	if err != nil {                                           // Handle errors reading the config file
-		panic(fmt.Errorf("fatal error config file: %s", err))
+	homeDir, err := home.Dir()
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+	absHome, err := filepath.Abs(homeDir + "/.psych_timer")
+	absCurr, err := filepath.Abs(".")
+
+	viper.SetConfigName(arguments["<config>"].(string)) // name of config file (without extension)
+	viper.AddConfigPath(absHome)                        // call multiple times to add many search paths
+	viper.AddConfigPath(absCurr)                        // optionally look for config in the working directory
+	err = viper.ReadInConfig()                          // Find and read the config file
+	if err != nil {                                     // Handle errors reading the config file
+		log.Fatalf("fatal error config file: %s", err)
 	}
 
 	err = viper.Unmarshal(&c)
 	if err != nil {
-		fmt.Errorf("unable to decode into struct, %v", err)
+		log.Fatalf("unable to decode into struct, %v", err)
 	}
 
 	log.Debugf("%+v\n", c)
@@ -173,6 +187,11 @@ Options:
 
 	// Configure websocket route
 	http.HandleFunc("/ws", handleConnections)
+	log.Debugf("Data: %+v", Data)
+	for k, v := range Data {
+		Data[strings.ReplaceAll(k, "\\", "/")] = v
+	}
+	log.Debugf("Data: %+v", Data)
 
 	go handleActions()
 	go handleServerMessages()

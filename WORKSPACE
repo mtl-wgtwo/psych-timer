@@ -1,14 +1,14 @@
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
-load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 http_archive(
     name = "rules_pkg",
-    url = "https://github.com/bazelbuild/rules_pkg/releases/download/0.2.3/rules_pkg-0.2.3.tar.gz",
     sha256 = "bdf04c8a7eeac7fddb824cdf92029af2f6a7ec38b10bf45e06f6b9f7ac57d07c",
+    url = "https://github.com/bazelbuild/rules_pkg/releases/download/0.2.3/rules_pkg-0.2.3.tar.gz",
 )
-load("@rules_pkg//:deps.bzl", "rules_pkg_dependencies")
-rules_pkg_dependencies()
 
+load("@rules_pkg//:deps.bzl", "rules_pkg_dependencies")
+
+rules_pkg_dependencies()
 
 http_archive(
     name = "io_bazel_rules_go",
@@ -845,4 +845,11 @@ go_repository(
     importpath = "go.uber.org/zap",
     sum = "h1:ORx85nbTijNz8ljznvCMR1ZBIPKFn3jQrag10X2AsuM=",
     version = "v1.10.0",
+)
+
+go_repository(
+    name = "com_github_mitchellh_go_homedir",
+    importpath = "github.com/mitchellh/go-homedir",
+    sum = "h1:lukF9ziXFxDFPkA1vsr5zpc1XuPDn/wFntq5mG+4E0Y=",
+    version = "v1.1.0",
 )
