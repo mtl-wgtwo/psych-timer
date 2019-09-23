@@ -1,4 +1,4 @@
---- 
+---
 intervals:
   - label: Baseline
     time: 10
@@ -30,7 +30,7 @@ intervals:
       Og hva gjør du da? <em>(Sjekk at personen forstår at den skal taste tallet og enter og telle videre).</em>
       Når det piper starter du å telle nedover fra 2013, 7 om gangen helt til det piper to ganger. Er du klar?
       <em>(start oppgaven hvis personen sier den er klar)</em></p>
-      
+
       <p><b>DO</b>: <em>Testleder trykker START/ENTER for et PIP som starter 5 minutters telleoppgave.</em></p>
 
       <p><b>WHAT THE PROGRAM DOES</b>: gives a PEEP when testleader hits button after instructions. Makes a
@@ -45,17 +45,16 @@ intervals:
       som du klarer. Det kommer et kort pip når vi starter og to korte pip når vi slutter.
       Er du klar?
       (start oppgaven hvis personen sier den er klar)</p>
-      
+
       <p><b>DO</b>: <em>Testleder trykker START/ENTER for et PIP som starter 5 minutters recovery.</em></p>
 
       <p><b>WHAT THE PROGRAM DOES</b>: gives a PEEP when testleader hits button after instructions. Makes a
       timed event for this PEEP. Makes another TWO PEEPs after 5 minutes.</p>
 randomizeIntervals: false
-preSoundFile: "sounds/pre.wav"
-postSoundFile: "sounds/post.wav"
+preSoundFile: "pre.wav"
+postSoundFile: "post.wav"
 introText: "This is the HRV condition"
 studyLabel: "HRV"
-resultsDir: "/Users/mtl/tmp/results"
+resultsDir: "results"
 instructions: |
-      This is the HRV test
-  
+  This is the HRV test

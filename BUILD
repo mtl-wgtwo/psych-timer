@@ -1,6 +1,6 @@
-load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library", "go_embed_data")
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_embed_data", "go_library")
 load("@bazel_gazelle//:def.bzl", "gazelle")
-load("@rules_pkg//:pkg.bzl", "pkg_zip", "pkg_tar")
+load("@rules_pkg//:pkg.bzl", "pkg_tar", "pkg_zip")
 
 # gazelle:prefix github.com/robothor/psych-timer
 gazelle(name = "gazelle")
@@ -31,7 +31,7 @@ go_library(
 
 go_binary(
     name = "psych-timer",
-    data = glob(["sounds/*.wav"]) + glob(["config/*.yaml"]),
+    data = glob(["*.wav"]) + glob(["*.yaml"]),
     embed = [
         ":go_default_library",
     ],
@@ -40,41 +40,26 @@ go_binary(
 
 go_embed_data(
     name = "static",
-    package = "main",
     srcs = glob(["static/**"]),
+    package = "main",
     string = True,
 )
 
-pkg_tar(
-    name = "sounds",
-    extension = "tgz",
-    package_dir = "sounds",
-    srcs = glob(["sounds/*.wav"]),
-)
-
-pkg_tar(
-    name = "configs",
-    extension = "tgz",
-    package_dir = "config",
-    srcs = glob(["config/*.yaml"]),
-)
-
+# It would be better to have a directory tree, but the zip
+# archiver doesn't support that.  Since Windows is kinda the
+# primary target we are stuck (for now).
 pkg_tar(
     name = "psych-timer-tgz",
-    extension = "tgz",
     srcs = [
         ":psych-timer",
-    ],
-    deps = [
-        ":sounds",
-        ":configs",
-    ],
+    ] + glob(["*.wav"]) + glob(["*.yaml"]),
+    extension = "tgz",
 )
 
 pkg_zip(
     name = "psych-timer-zip",
-    extension = "zip",
     srcs = [
         ":psych-timer",
-    ] + glob(["config/*.yaml"]) + glob(["sounds/*.wav"]),
+    ] + glob(["*.yaml"]) + glob(["*.wav"]),
+    extension = "zip",
 )

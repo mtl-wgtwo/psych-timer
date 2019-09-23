@@ -86,8 +86,8 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 		// Read in a new message as JSON and map it to a Message object
 		err := ws.ReadJSON(&msg)
 		if err != nil {
-			log.Printf("error: %v", err)
 			client = nil
+			log.Fatalf("error: %v", err)
 			break
 		}
 		log.Debugf("Received message %+v\n", msg)
@@ -128,8 +128,8 @@ func handleServerMessages() {
 
 		err := client.conn.WriteJSON(msg)
 		if err != nil {
-			log.Printf("error: %v", err)
 			client.conn.Close()
+			log.Fatalf("error: %v", err)
 		}
 	}
 }
@@ -160,18 +160,10 @@ Options:
 		log.SetLevel(log.DebugLevel)
 	}
 
-	// homeDir, err := home.Dir()
-	// if err != nil {
-	// 	log.Fatal(err.Error())
-	// }
-	// absHome, err := filepath.Abs(homeDir + "/.psych_timer")
-	// absCurr, err := filepath.Abs(".")
 	absPath, err := filepath.Abs(arguments["<config>"].(string))
 
 	viper.SetConfigName(filepath.Base(absPath)) // name of config file (without extension)
 	viper.AddConfigPath(filepath.Dir(absPath))
-	//viper.AddConfigPath(absHome) // call multiple times to add many search paths
-	//viper.AddConfigPath(absCurr) // optionally look for config in the working directory
 	err = viper.ReadInConfig() // Find and read the config file
 	if err != nil {            // Handle errors reading the config file
 		log.Fatalf("fatal error config file: %s", err)

@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 )
 
 // We need to emit files in Mindware format
@@ -40,13 +42,23 @@ type MindwareFile struct {
 
 func check(e error) {
 	if e != nil {
-		panic(e)
+		log.Fatal(e.Error())
 	}
 }
 
 func NewMindwareFile(name string) *MindwareFile {
 	cleanName, err := filepath.Abs(name)
 	check(err)
+	folderPath := filepath.Dir(name)
+	if _, err := os.Stat(folderPath); os.IsNotExist(err) {
+		log.Debugf("%s doesn't exist, attempting to create it\n", folderPath)
+		e := os.MkdirAll(folderPath, os.ModePerm)
+		if e != nil {
+			log.Fatal(e.Error())
+		}
+	}
+
+	log.Debugf("%s should exist, trying to create file\n", folderPath)
 	f, err := os.Create(cleanName)
 	check(err)
 
