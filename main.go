@@ -10,7 +10,6 @@ import (
 
 	"github.com/docopt/docopt-go"
 	"github.com/gorilla/websocket"
-	home "github.com/mitchellh/go-homedir"
 	log "github.com/sirupsen/logrus"
 	"github.com/skratchdot/open-golang/open"
 	"github.com/spf13/viper"
@@ -161,19 +160,20 @@ Options:
 		log.SetLevel(log.DebugLevel)
 	}
 
-	homeDir, err := home.Dir()
-	if err != nil {
-		log.Fatal(err.Error())
-	}
-	absHome, err := filepath.Abs(homeDir + "/.psych_timer")
-	absCurr, err := filepath.Abs(".")
-	cleanPath := filepath.Clean(arguments["<config>"].(string))
+	// homeDir, err := home.Dir()
+	// if err != nil {
+	// 	log.Fatal(err.Error())
+	// }
+	// absHome, err := filepath.Abs(homeDir + "/.psych_timer")
+	// absCurr, err := filepath.Abs(".")
+	absPath, err := filepath.Abs(arguments["<config>"].(string))
 
-	viper.SetConfigName(cleanPath) // name of config file (without extension)
-	viper.AddConfigPath(absHome)   // call multiple times to add many search paths
-	viper.AddConfigPath(absCurr)   // optionally look for config in the working directory
-	err = viper.ReadInConfig()     // Find and read the config file
-	if err != nil {                // Handle errors reading the config file
+	viper.SetConfigName(filepath.Base(absPath)) // name of config file (without extension)
+	viper.AddConfigPath(filepath.Dir(absPath))
+	//viper.AddConfigPath(absHome) // call multiple times to add many search paths
+	//viper.AddConfigPath(absCurr) // optionally look for config in the working directory
+	err = viper.ReadInConfig() // Find and read the config file
+	if err != nil {            // Handle errors reading the config file
 		log.Fatalf("fatal error config file: %s", err)
 	}
 
