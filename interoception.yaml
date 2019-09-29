@@ -1,22 +1,22 @@
 intervals:
-  - label: FiveSecond
-    time: 5
+  - label: TwentyFiveSecond
+    time: 25
     playSound: true
     inputMatcher: "([0-9]+)[\n\r]"
     pauseAfter:
       - type: input
       - type: time
         time: 10
-  - label: EightSecond
-    time: 8
+  - label: ThirtyFiveSecond
+    time: 35
     playSound: true
     inputMatcher: "([0-9]+)[\n\r]"
     pauseAfter:
       - type: input
       - type: time
         time: 10
-  - label: TenSecond
-    time: 10
+  - label: FortyFiveSecond
+    time: 45
     playSound: true
     inputMatcher: "([0-9]+)[\n\r]"
     pauseAfter:

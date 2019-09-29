@@ -1,7 +1,7 @@
 ---
 intervals:
   - label: Baseline
-    time: 10
+    time: 300
     playSound: true
     instructions: |
       <p><b>SAY</b>: Nå skal du sitte sitte rolig i fem minutter uten å snakke, prøv å slappe av i kroppen og sitte så
@@ -15,7 +15,7 @@ intervals:
     pauseBefore:
       type: wait
   - label: Condition
-    time: 30
+    time: 300
     playSound: true
     pauseBefore:
       type: wait
@@ -36,7 +36,7 @@ intervals:
       <p><b>WHAT THE PROGRAM DOES</b>: gives a PEEP when testleader hits button after instructions. Makes a
       timed event for this PEEP. Makes another TWO PEEPs after 5 minutes.</p>
   - label: Return
-    time: 10
+    time: 300
     playSound: true
     pauseBefore:
       type: wait

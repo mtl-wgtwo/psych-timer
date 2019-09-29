@@ -169,18 +169,20 @@ func (p *PsychTimer) handlePauses(v Interval, pauses []*Pause) (isBreak bool) {
 				Kind:    "WAIT",
 				Message: v.Instructions,
 			}
+			p.currentFile.WriteEvent("PsychTimer/"+p.config.StudyLabel+" Event", "Start Wait Pause: "+v.Label)
 			<-pause.wait
+			p.currentFile.WriteEvent("PsychTimer/"+p.config.StudyLabel+" Event", "End Wait Pause: "+v.Label)
 		case "time":
 			p.ch <- ServerMessage{
 				Kind:    "INFO",
 				Message: fmt.Sprintf("Interval post wait period: %d seconds", pause.Time),
 			}
-			p.currentFile.WriteEvent("PsychTimer/"+p.config.StudyLabel+" Event", "Start Pause: "+v.Label)
+			p.currentFile.WriteEvent("PsychTimer/"+p.config.StudyLabel+" Event", "Start Time Pause: "+v.Label)
 			isBreak = cancelableSleep(p.ctx, pause.Time)
 			if isBreak {
 				return
 			}
-			p.currentFile.WriteEvent("PsychTimer/"+p.config.StudyLabel+" Event", "End Pause: "+v.Label)
+			p.currentFile.WriteEvent("PsychTimer/"+p.config.StudyLabel+" Event", "End Time Pause: "+v.Label)
 		case "input":
 			pause.wait = make(chan bool, 1)
 
@@ -188,8 +190,10 @@ func (p *PsychTimer) handlePauses(v Interval, pauses []*Pause) (isBreak bool) {
 				Kind:    "INFO",
 				Message: fmt.Sprintf("Waiting for INPUT from subject"),
 			}
+			p.currentFile.WriteEvent("PsychTimer/"+p.config.StudyLabel+" Event", "Start Input Pause: "+v.Label)
 			log.Debugf("Waiting for input with %+v\n", pause)
 			<-pause.wait
+			p.currentFile.WriteEvent("PsychTimer/"+p.config.StudyLabel+" Event", "End Input Pause: "+v.Label)
 		default:
 			log.Debugln("Unknown pause condition:", pause.Type)
 		}
@@ -229,16 +233,19 @@ func (p *PsychTimer) RunOne(ID string) {
 			Kind:    "INFO",
 			Message: fmt.Sprintf("Starting interval wait period: %d seconds", v.Time),
 		}
+		p.currentFile.WriteEvent("PsychTimer/"+p.config.StudyLabel+" Event", "Start Main Test: "+v.Label)
+
 		isCanceled = cancelableSleep(p.ctx, v.Time)
 		if isCanceled {
 			return
 		}
-		if v.PlaySound {
-			p.playBeep(p.postSound)
-		}
 		p.ch <- ServerMessage{
 			Kind:    "INFO",
 			Message: fmt.Sprintf("Ending interval wait period: %d seconds", v.Time),
+		}
+		p.currentFile.WriteEvent("PsychTimer/"+p.config.StudyLabel+" Event", "Stop Main Test: "+v.Label)
+		if v.PlaySound {
+			p.playBeep(p.postSound)
 		}
 
 		p.handlePauses(v, v.PauseAfter)

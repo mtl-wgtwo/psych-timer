@@ -98,8 +98,7 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 		// Read in a new message as JSON and map it to a Message object
 		err := client.Conn().ReadJSON(&msg)
 		if err != nil {
-			log.Debugf("%s from WS, closing connection\n", err.Error())
-			//client.SetWSConn(nil)
+			log.Fatalf("%s from WS, closing connection\n", err.Error())
 			break
 		}
 		log.Debugf("Received message %+v\n", msg)

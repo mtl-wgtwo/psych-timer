@@ -80,7 +80,7 @@ func (f *MindwareFile) WriteEvent(eventType, name string) {
 	e := &mindwareEvent{
 		EventType: eventType,
 		Name:      name,
-		Timestamp: time.Now().UTC(),
+		Timestamp: time.Now().Local(),
 	}
 	f.mutex.Lock()
 	f.events = append(f.events, e)
