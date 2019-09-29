@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/docopt/docopt-go"
@@ -30,11 +31,13 @@ type ServerMessage struct {
 }
 
 var client *PsychTimer
+var clientCount uint64
 var actionChan = make(chan ClientMessage) // broadcast channel
 var serverChan = make(chan ServerMessage)
 
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
+		atomic.AddUint64(&clientCount, 1)
 		return true
 	},
 }
@@ -98,7 +101,9 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 		// Read in a new message as JSON and map it to a Message object
 		err := client.Conn().ReadJSON(&msg)
 		if err != nil {
-			log.Fatalf("%s from WS, closing connection\n", err.Error())
+			log.Debugf("%s from WS, closing connection\n", err.Error())
+			atomic.AddUint64(&clientCount, ^uint64(0))
+			sleepAndMaybeQuit()
 			break
 		}
 		log.Debugf("Received message %+v\n", msg)
@@ -148,6 +153,13 @@ func handleServerMessages() {
 func sleepAndOpen() {
 	time.Sleep(time.Duration(200) * time.Millisecond)
 	open.Start("http://localhost:" + client.config.Port)
+}
+
+func sleepAndMaybeQuit() {
+	time.Sleep(time.Duration(1000) * time.Millisecond)
+	if clientCount == 0 {
+		log.Fatal("No connections, quitting")
+	}
 }
 
 func main() {

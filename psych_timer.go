@@ -211,7 +211,7 @@ func (p *PsychTimer) RunOne(ID string) {
 		Kind:    "BEGIN",
 		Message: ID,
 	}
-	p.currentFile = NewMindwareFile(filepath.Join(p.config.ResultsDir, ID+".tsv"))
+	p.currentFile = NewMindwareFile(filepath.Join(p.config.ResultsDir, ID+".txt"))
 	defer p.currentFile.Close()
 
 	for i, v := range p.config.Intervals {
