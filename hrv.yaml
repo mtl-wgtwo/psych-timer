@@ -56,5 +56,6 @@ postSoundFile: "post.wav"
 introText: "This is the HRV condition"
 studyLabel: "HRV"
 resultsDir: "results"
+port: 8090
 instructions: |
   This is the HRV test

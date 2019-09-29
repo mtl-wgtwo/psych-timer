@@ -70,24 +70,36 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	log.Debugf("creating %+v\n", ws)
+
 	// Make sure we close the connection when the function returns
-	defer ws.Close()
+	defer func() {
+		log.Debugf("closing %+v\n", ws)
+		ws.Close()
+	}()
 
 	log.Debug("Upgraded to ws!")
 	// Register our new client
-	client = NewPsychTimer(c, ws, serverChan)
+	err = client.SetWSConn(ws)
+
 	client.ch <- ServerMessage{
 		Kind:    "INSTRUCTIONS",
 		Message: client.config.Instructions,
 	}
 
+	client.ch <- ServerMessage{
+		Kind:    "STUDY",
+		Message: client.config.StudyLabel,
+	}
+
 	for {
 		var msg ClientMessage
 		// Read in a new message as JSON and map it to a Message object
-		err := ws.ReadJSON(&msg)
+		err := client.Conn().ReadJSON(&msg)
 		if err != nil {
-			client = nil
-			log.Fatalf("error: %v", err)
+			log.Debugf("%s from WS, closing connection\n", err.Error())
+			//client.SetWSConn(nil)
 			break
 		}
 		log.Debugf("Received message %+v\n", msg)
@@ -126,9 +138,9 @@ func handleServerMessages() {
 		msg := <-serverChan
 		log.Debugf("Server message %+v\n", msg)
 
-		err := client.conn.WriteJSON(msg)
+		err := client.Conn().WriteJSON(msg)
 		if err != nil {
-			client.conn.Close()
+			client.Conn().Close()
 			log.Fatalf("error: %v", err)
 		}
 	}
@@ -136,7 +148,7 @@ func handleServerMessages() {
 
 func sleepAndOpen() {
 	time.Sleep(time.Duration(200) * time.Millisecond)
-	open.Start("http://localhost:8080")
+	open.Start("http://localhost:" + client.config.Port)
 }
 
 func main() {
@@ -174,6 +186,8 @@ Options:
 		log.Fatalf("unable to decode into struct, %v", err)
 	}
 
+	client = NewPsychTimer(c, serverChan)
+
 	log.Debugf("%+v\n", c)
 
 	http.Handle("/", MapServer(Data, "/static/"))
@@ -189,7 +203,7 @@ Options:
 	go handleActions()
 	go handleServerMessages()
 	go sleepAndOpen()
-	err = http.ListenAndServe(":8080", nil)
+	err = http.ListenAndServe(":"+client.config.Port, nil)
 	if err != nil {
 		log.Fatal("ListenAndServe: ", err)
 	}

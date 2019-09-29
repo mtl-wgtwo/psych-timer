@@ -37,13 +37,14 @@ type Interval struct {
 }
 
 type Config struct {
-	Intervals         []Interval `yaml:"intervals,omitempty"`
-	RandomizeInterval bool       `yaml:"randomizeInterval,omitempty"`
-	PreSoundFile      string     `yaml:"preSoundFile,omitempty"`
-	PostSoundFile     string     `yaml:"postSoundFile,omitempty"`
-	StudyLabel        string     `yaml:"studyLabel,omitempty"`
-	ResultsDir        string     `yaml:"resultsDir,omitempty"`
-	Instructions      string     `yaml:"instructions,omitempty"`
+	Intervals         []Interval `yaml:"intervals,omitempty" json:"intervals,omitempty"`
+	RandomizeInterval bool       `yaml:"randomizeInterval,omitempty" json:"randomize_interval,omitempty"`
+	PreSoundFile      string     `yaml:"preSoundFile,omitempty" json:"pre_sound_file,omitempty"`
+	PostSoundFile     string     `yaml:"postSoundFile,omitempty" json:"post_sound_file,omitempty"`
+	StudyLabel        string     `yaml:"studyLabel,omitempty" json:"study_label,omitempty"`
+	ResultsDir        string     `yaml:"resultsDir,omitempty" json:"results_dir,omitempty"`
+	Port              string     `yaml:"port,omitempty"`
+	Instructions      string     `yaml:"instructions,omitempty" json:"instructions,omitempty"`
 }
 
 type soundConfig struct {
@@ -94,7 +95,7 @@ func loadSoundConfig(file string) *soundConfig {
 
 }
 
-func NewPsychTimer(c Config, conn *websocket.Conn, ch chan ServerMessage) *PsychTimer {
+func NewPsychTimer(c Config, ch chan ServerMessage) *PsychTimer {
 	t, _ := copystructure.Copy(c)
 	n := t.(Config)
 
@@ -125,10 +126,14 @@ func NewPsychTimer(c Config, conn *websocket.Conn, ch chan ServerMessage) *Psych
 		config:     n,
 		preSound:   loadSoundConfig(cleanPre),
 		postSound:  loadSoundConfig(cleanPost),
-		conn:       conn,
 		ch:         ch,
 		matchMutex: &sync.Mutex{},
 	}
+}
+
+func (p *PsychTimer) SetWSConn(conn *websocket.Conn) error {
+	p.conn = conn
+	return nil
 }
 
 func (p *PsychTimer) playBeep(s *soundConfig) {
@@ -175,6 +180,7 @@ func (p *PsychTimer) handlePauses(v Interval, pauses []*Pause) (isBreak bool) {
 			if isBreak {
 				return
 			}
+			p.currentFile.WriteEvent("PsychTimer/"+p.config.StudyLabel+" Event", "End Pause: "+v.Label)
 		case "input":
 			pause.wait = make(chan bool, 1)
 
@@ -286,6 +292,10 @@ func (p *PsychTimer) clearInput() {
 
 	p.matches = nil
 	p.matchBytes = nil
+}
+
+func (p *PsychTimer) Conn() *websocket.Conn {
+	return p.conn
 }
 
 func (p *PsychTimer) Cancel(ID string) {

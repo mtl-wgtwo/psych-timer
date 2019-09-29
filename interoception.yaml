@@ -30,6 +30,7 @@ postSoundFile: "post.wav"
 introText: "This is the Interoception condition"
 studyLabel: "Interoception"
 resultsDir: "results"
+port: 8091
 instructions: |
   <p><b>SAY</b>: Nå skal vi gjøre en telleoppgave der det er viktig at du sitter så rolig du kan. Du skal ikke snakke. I
   denne oppgaven vil jeg at du teller hjerteslagene dine.  Du kan ikke holde pusten eller ta pulsen noe sted på kroppen for å kjenne hjerteslagene bedre, bare
