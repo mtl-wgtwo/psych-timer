@@ -65,7 +65,7 @@ type PsychTimer struct {
 	currentInterval *Interval
 	currentFile     *MindwareFile
 	ctx             context.Context
-	cancel          context.CancelFunc
+	cancel          context.CancelFunc // Cancel _everything_
 	currentPause    *Pause
 }
 
@@ -236,9 +236,6 @@ func (p *PsychTimer) RunOne(ID string) {
 		p.currentFile.WriteEvent("PsychTimer/"+p.config.StudyLabel+" Event", "Start Main Test: "+v.Label)
 
 		isCanceled = cancelableSleep(p.ctx, v.Time)
-		if isCanceled {
-			return
-		}
 		p.ch <- ServerMessage{
 			Kind:    "INFO",
 			Message: fmt.Sprintf("Ending interval wait period: %d seconds", v.Time),
@@ -246,6 +243,9 @@ func (p *PsychTimer) RunOne(ID string) {
 		p.currentFile.WriteEvent("PsychTimer/"+p.config.StudyLabel+" Event", "Stop Main Test: "+v.Label)
 		if v.PlaySound {
 			p.playBeep(p.postSound)
+		}
+		if isCanceled {
+			return
 		}
 
 		p.handlePauses(v, v.PauseAfter)

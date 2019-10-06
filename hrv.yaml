@@ -4,11 +4,11 @@ intervals:
     time: 300
     playSound: true
     instructions: |
-      <p><b>SAY</b>: Nå skal du sitte sitte rolig i fem minutter uten å snakke, prøv å slappe av i kroppen og sitte så
+      <p><b>SI</b>: Nå skal du sitte sitte rolig i fem minutter uten å snakke, prøv å slappe av i kroppen og sitt så
       rolig som du klarer. Det kommer et kort pip når vi starter de fem minuttene og to korte pip når vi
       slutter. Er du klar? (start oppgaven hvis personen sier den er klar)</p>
 
-      <p><b>DO</b>: <em>Testleder trykker START/ENTER for å starte baselineopptak på 5 minutter.</em></p>
+      <p><b>GJØR</b>: <em>Testleder trykker CONTINUE for å starte baselineopptak på 5 minutter.</em></p>
 
       <p><b>WHAT THE PROGRAM DOES</b>: gives a PEEP when testleader hits button after instructions. Makes a
       timed event for this PEEP. Makes another TWO PEEPs after 5 minutes which ends the baseline.</p>
@@ -21,17 +21,16 @@ intervals:
       type: wait
     inputMatcher: "([0-9]+)[\n\r]"
     instructions: |
-      <p><b>SAY</b>: Nå skal vi gjøre en telleoppgave der det fortsatt er viktig at du sitter rolig. Du skal ikke snakke nå
-      heller. Når oppgaven starter vil jeg at du teller ned fra et tall med 7 om gangen, så fort du klarer. Du
-      skal taste inn svaret på tastaturet her og trykke enter, og så neste svar og enter, neste svar og enter
-      og så videre, jeg følger med på svarene her bak. Det kommer et kort pip når vi starter og to korte pip
-      når vi slutter. Så hvis vi teller nedover fra 2020 med 7 om ganger, hva er det første tallet?
+      <p><b>SI</b>: Nå skal vi gjøre en regneoppgave der det fortsatt er viktig at du sitter rolig. Du skal ikke snakke nå
+      heller. Når oppgaven starter vil jeg at du skal trekke 7 fra det tallet vi starter med, skrive inn svaret og trykke enter, og så gjør du det samme fra svaret du fikk, trekk fra 7, skriv svaret og trykk enter, og så videre så fort du klarer.
+      Jeg ser alle svarene her bak. Det kommer et kort pip når vi starter og to korte pip
+      når vi slutter. Så hvis vi starter med 2020 og trekker fra 7, hva blir svaret da?
       <em>(Sjekk at testperson får til oppgaven (svar 2013). hvis ikke, gi svaret.)</em>
-      Og hva gjør du da? <em>(Sjekk at personen forstår at den skal taste tallet og enter og telle videre).</em>
-      Når det piper starter du å telle nedover fra 2013, 7 om gangen helt til det piper to ganger. Er du klar?
+      Og hva gjør du da? <em>(Sjekk at personen forstår at den skal taste tallet og enter og trekke fra 7 på svaret og så videre).</em>
+      Når det piper starter du å regne nedover fra 2013, 7 om gangen og skriver inn hvert svar og trykker enter helt til det piper to ganger. Er du klar?
       <em>(start oppgaven hvis personen sier den er klar)</em></p>
 
-      <p><b>DO</b>: <em>Testleder trykker START/ENTER for et PIP som starter 5 minutters telleoppgave.</em></p>
+      <p><b>GJØR</b>: <em>Testleder trykker CONTINUEfor et PIP som starter 5 minutters telleoppgave.</em></p>
 
       <p><b>WHAT THE PROGRAM DOES</b>: gives a PEEP when testleader hits button after instructions. Makes a
       timed event for this PEEP. Makes another TWO PEEPs after 5 minutes.</p>
@@ -41,21 +40,21 @@ intervals:
     pauseBefore:
       type: wait
     instructions: |
-      <p><b>SAY</b>: Nå skal du sitte sitte rolig en siste gang uten å snakke, prøv å slappe av i kroppen og sitte så mye i ro
+      <p><b>SAY</b>: Nå skal du sitte rolig i 5 minutter igjen uten å snakke, prøv å slappe av i kroppen og sitt så rolig
       som du klarer. Det kommer et kort pip når vi starter og to korte pip når vi slutter.
       Er du klar?
       (start oppgaven hvis personen sier den er klar)</p>
 
-      <p><b>DO</b>: <em>Testleder trykker START/ENTER for et PIP som starter 5 minutters recovery.</em></p>
+      <p><b>DO</b>: <em>Testleder trykker CONTINUE for et PIP som starter 5 minutters recovery.</em></p>
 
       <p><b>WHAT THE PROGRAM DOES</b>: gives a PEEP when testleader hits button after instructions. Makes a
       timed event for this PEEP. Makes another TWO PEEPs after 5 minutes.</p>
 randomizeIntervals: false
 preSoundFile: "pre.wav"
 postSoundFile: "post.wav"
-introText: "This is the HRV condition"
+introText: "Dette er HRV testen"
 studyLabel: "HRV"
 resultsDir: "results"
 port: 8090
 instructions: |
-  This is the HRV test
+  Dette er HRV testen
