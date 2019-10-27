@@ -264,7 +264,11 @@ func (p *PsychTimer) RunOne(ID string) {
 func (p *PsychTimer) AddKey(k string, b byte) {
 	p.matchMutex.Lock()
 	defer p.matchMutex.Unlock()
-	p.matchBytes = append(p.matchBytes, b)
+	if b != 13 {
+		p.matchBytes = append(p.matchBytes, []byte(k)[0])
+	} else {
+		p.matchBytes = append(p.matchBytes, b)
+	}
 	log.Debugln(p.matchBytes)
 	r := p.currentInterval.regexMatcher
 
