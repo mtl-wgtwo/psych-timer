@@ -1,3 +1,7 @@
+function appendMsg(a, b) {
+    return a + b;   // The function returns the product of p1 and p2
+}
+
 new Vue({
     el: '#app',
 
@@ -7,10 +11,11 @@ new Vue({
         started: false,
         serverMessages: "",
         serverInstructions: "",
-        pauseInstructions: ""
+        pauseInstructions: "",
+        canSkip: false
     },
 
-    created: function() {
+    created: function () {
         var self = this;
         self.ws = new WebSocket('ws://' + window.location.host + '/ws');
         window.addEventListener('keydown', (e) => {
@@ -25,14 +30,15 @@ new Vue({
                 );
             }
         });
-        this.ws.addEventListener('message', function(e) {
+        this.ws.addEventListener('message', function (e) {
             var msg = JSON.parse(e.data);
             console.log(msg)
             switch (msg.kind) {
                 case "INFO":
-                    self.serverMessages += msg.message + '<br/>';
+                    self.serverMessages = appendMsg(msg.message + '<br/>',
+                        self.serverMessages);
                     var element = document.getElementById('server-messages');
-                    element.scrollTop = element.scrollHeight; // Auto scroll to the bottom    
+                    element.scrollTop = 0;
                     break;
                 case "INSTRUCTIONS":
                     self.serverInstructions = '<span class="card-title">Instructions</span>' + msg.message;
@@ -44,6 +50,11 @@ new Vue({
                 case "WAIT":
                     // Trigger the modal dialog here
                     self.pauseInstructions = '<span class="card-title">Instructions</span>' + msg.message;
+                    if (typeof msg.extraInfo !== 'undefined' && msg.extraInfo == 'canSkip') {
+                        self.canSkip = true
+                    } else {
+                        self.canSkip = false
+                    }
                     var elems = document.querySelectorAll('.modal');
                     var instances = M.Modal.init(elems, {
                         onOpenStart: () => {
@@ -62,21 +73,28 @@ new Vue({
                     instances[0].open()
                     break;
                 case "BEGIN":
-                    self.serverMessages += "Beginning for id = " + msg.message + '<br/>';
+                    self.serverMessages = appendMsg("Beginning for id = " + msg.message + '<br/>',
+                        self.serverMessages);
                     break;
                 case "END":
-                    self.serverMessages += "Ending for id = " + msg.message + '<br/>';
+                    self.serverMessages = appendMsg("Ending for id = " + msg.message + '<br/>',
+                        self.serverMessages);
                     self.started = false;
                     break;
                 case "CANCEL":
-                    self.serverMessages += "Canceled for id = " + msg.message + '<br/>';
+                    self.serverMessages = appendMsg("Canceled for id = " + msg.message + '<br/>',
+                        self.serverMessages);
+                    break;
+                case "SKIP":
+                    self.serverMessages = appendMsg("Skip for id = " + msg.message + '<br/>',
+                        self.serverMessages);
                     break;
             }
         });
     },
 
     methods: {
-        start: function() {
+        start: function () {
             var self = this;
             if (!this.subjectId) {
                 Materialize.toast('You must enter an id for the subject', 2000);
@@ -91,7 +109,7 @@ new Vue({
             );
             self.started = true;
         },
-        cancel: function() {
+        cancel: function () {
             var self = this;
             this.ws.send(
                 JSON.stringify({
@@ -100,5 +118,15 @@ new Vue({
                 })
             );
         },
+        skip: function () {
+            var self = this;
+            this.ws.send(
+                JSON.stringify({
+                    subjectId: self.subjectId,
+                    action: "SKIP"
+                })
+            );
+        },
+
     }
 });

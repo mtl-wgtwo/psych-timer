@@ -5,9 +5,9 @@
     <meta charset="UTF-8">
     <title>psych-timer</title>
 
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css">
-    <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/emojione/2.2.6/assets/css/emojione.min.css" />
+    <link rel="stylesheet" href="/materialize.min.css">
+    <link rel="stylesheet" href="/material_icons.css">
+    <link rel="stylesheet" href="/emojione.min.css" />
     <link rel="stylesheet" href="/style.css">
 
 </head>
@@ -44,7 +44,12 @@
                     Cancel
                 </button>
             </div>
-
+            <div class="input-field col s4" v-if="canSkip">
+                <button class="waves-effect waves-light btn orange darken-2" @click="skip()">
+                    <i class="material-icons right">done</i>
+                    Skip this interval
+                </button>
+            </div>
         </div>
         <div class="row">
             <div class="col s8">
@@ -74,9 +79,9 @@
 
         <audio id="sound" src="" autoplay></audio>
     </main>
-    <script src="https://unpkg.com/vue@2.1.3/dist/vue.min.js"></script>
-    <script src="https://code.jquery.com/jquery-3.2.1.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
+    <script src="/vue.min.js"></script>
+    <script src="/jquery-3.2.1.min.js"></script>
+    <script src="/materialize.min.js"></script>
     <script src="/index.js"></script>
 </body>
 

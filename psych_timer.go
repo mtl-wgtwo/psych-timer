@@ -32,6 +32,7 @@ type Interval struct {
 	PauseBefore  []*Pause `yaml:"pauseBefore,omitempty"`
 	InputMatcher string   `yaml:"inputMatcher,omitempty"`
 	Instructions string   `yaml:"instructions,omitempty"`
+	CanSkip      bool     `yaml:"canSkip,omitempty"`
 
 	regexMatcher *regexp.Regexp `yaml:"regexMatcher,omitempty"`
 }
@@ -64,9 +65,15 @@ type PsychTimer struct {
 	ch              chan ServerMessage
 	currentInterval *Interval
 	currentFile     *MindwareFile
-	ctx             context.Context
-	cancel          context.CancelFunc // Cancel _everything_
-	currentPause    *Pause
+
+	// These variables are the context for the entire run
+	runCtx    context.Context
+	runCancel context.CancelFunc // Cancel _everything_
+
+	// These variables are the context for the current interval
+	intervalCtx    context.Context
+	intervalCancel context.CancelFunc // Cancel _everything_
+	currentPause   *Pause
 }
 
 func (p *PsychTimer) maybeShuffleIntervals() {
@@ -165,10 +172,14 @@ func (p *PsychTimer) handlePauses(v Interval, pauses []*Pause) (isBreak bool) {
 		case "wait":
 			// Send message to UI, wait for continue
 			pause.wait = make(chan bool, 1)
-			p.ch <- ServerMessage{
+			sm := ServerMessage{
 				Kind:    "WAIT",
 				Message: v.Instructions,
 			}
+			if v.CanSkip {
+				sm.ExtraInfo = "canSkip"
+			}
+			p.ch <- sm
 			p.currentFile.WriteEvent("PsychTimer/"+p.config.StudyLabel+" Event", "Start Wait Pause: "+v.Label)
 			<-pause.wait
 			p.currentFile.WriteEvent("PsychTimer/"+p.config.StudyLabel+" Event", "End Wait Pause: "+v.Label)
@@ -178,7 +189,7 @@ func (p *PsychTimer) handlePauses(v Interval, pauses []*Pause) (isBreak bool) {
 				Message: fmt.Sprintf("Interval post wait period: %d seconds", pause.Time),
 			}
 			p.currentFile.WriteEvent("PsychTimer/"+p.config.StudyLabel+" Event", "Start Time Pause: "+v.Label)
-			isBreak = cancelableSleep(p.ctx, pause.Time)
+			isBreak = cancelableSleep(p.runCtx, pause.Time)
 			if isBreak {
 				return
 			}
@@ -203,10 +214,59 @@ func (p *PsychTimer) handlePauses(v Interval, pauses []*Pause) (isBreak bool) {
 	return
 }
 
+func (p *PsychTimer) runOneInverval(ID string, i int, v Interval) {
+	isCanceled := false
+	defer func() {
+		p.intervalCancel()
+		p.intervalCancel = nil
+		p.intervalCtx = nil
+	}()
+
+	p.intervalCtx, p.intervalCancel = context.WithCancel(p.runCtx)
+	p.clearInput()
+	p.currentInterval = &p.config.Intervals[i]
+	p.ch <- ServerMessage{
+		Kind:    "INFO",
+		Message: fmt.Sprintf("Starting new interval for %s: %s", ID, v.Label),
+	}
+	p.currentFile.WriteEvent("PsychTimer/"+p.config.StudyLabel+" Event", "Start Interval: "+v.Label)
+
+	p.handlePauses(v, v.PauseBefore)
+
+	// Interval starts
+	if v.PlaySound {
+		p.playBeep(p.preSound)
+	}
+	p.ch <- ServerMessage{
+		Kind:    "INFO",
+		Message: fmt.Sprintf("Starting interval wait period: %d seconds", v.Time),
+	}
+	p.currentFile.WriteEvent("PsychTimer/"+p.config.StudyLabel+" Event", "Start Main Test: "+v.Label)
+
+	isCanceled = cancelableSleep(p.intervalCtx, v.Time)
+	p.ch <- ServerMessage{
+		Kind:    "INFO",
+		Message: fmt.Sprintf("Ending interval wait period: %d seconds", v.Time),
+	}
+	p.currentFile.WriteEvent("PsychTimer/"+p.config.StudyLabel+" Event", "Stop Main Test: "+v.Label)
+	if v.PlaySound {
+		p.playBeep(p.postSound)
+	}
+	if isCanceled {
+		return
+	}
+
+	p.handlePauses(v, v.PauseAfter)
+	p.ch <- ServerMessage{
+		Kind:    "INFO",
+		Message: fmt.Sprintf("Done with interval for %s: %s", ID, v.Label),
+	}
+	p.currentFile.WriteEvent("PsychTimer/"+p.config.StudyLabel+" Event", "End Interval: "+v.Label)
+}
+
 func (p *PsychTimer) RunOne(ID string) {
 	p.maybeShuffleIntervals()
-	p.ctx, p.cancel = context.WithCancel(context.Background())
-	isCanceled := false
+	p.runCtx, p.runCancel = context.WithCancel(context.Background())
 	p.ch <- ServerMessage{
 		Kind:    "BEGIN",
 		Message: ID,
@@ -215,45 +275,14 @@ func (p *PsychTimer) RunOne(ID string) {
 	defer p.currentFile.Close()
 
 	for i, v := range p.config.Intervals {
-		p.clearInput()
-		p.currentInterval = &p.config.Intervals[i]
-		p.ch <- ServerMessage{
-			Kind:    "INFO",
-			Message: fmt.Sprintf("Starting new interval for %s: %s", ID, v.Label),
-		}
-		p.currentFile.WriteEvent("PsychTimer/"+p.config.StudyLabel+" Event", "Start Interval: "+v.Label)
-
-		p.handlePauses(v, v.PauseBefore)
-
-		// Interval starts
-		if v.PlaySound {
-			p.playBeep(p.preSound)
-		}
-		p.ch <- ServerMessage{
-			Kind:    "INFO",
-			Message: fmt.Sprintf("Starting interval wait period: %d seconds", v.Time),
-		}
-		p.currentFile.WriteEvent("PsychTimer/"+p.config.StudyLabel+" Event", "Start Main Test: "+v.Label)
-
-		isCanceled = cancelableSleep(p.ctx, v.Time)
-		p.ch <- ServerMessage{
-			Kind:    "INFO",
-			Message: fmt.Sprintf("Ending interval wait period: %d seconds", v.Time),
-		}
-		p.currentFile.WriteEvent("PsychTimer/"+p.config.StudyLabel+" Event", "Stop Main Test: "+v.Label)
-		if v.PlaySound {
-			p.playBeep(p.postSound)
-		}
-		if isCanceled {
+		p.runOneInverval(ID, i, v)
+		select {
+		case <-p.runCtx.Done():
+			// If the entire run was canceled, then exit everything
 			return
+		case <-time.After(time.Duration(10) * time.Millisecond):
+			// do nothing
 		}
-
-		p.handlePauses(v, v.PauseAfter)
-		p.ch <- ServerMessage{
-			Kind:    "INFO",
-			Message: fmt.Sprintf("Done with interval for %s: %s", ID, v.Label),
-		}
-		p.currentFile.WriteEvent("PsychTimer/"+p.config.StudyLabel+" Event", "End Interval: "+v.Label)
 	}
 	p.ch <- ServerMessage{
 		Kind:    "END",
@@ -313,7 +342,9 @@ func (p *PsychTimer) Conn() *websocket.Conn {
 }
 
 func (p *PsychTimer) Cancel(ID string) {
-	p.cancel()
+	p.runCancel()
+	p.currentFile.WriteEvent("PsychTimer/"+p.config.StudyLabel+" Event", "Canceled")
+
 	p.ch <- ServerMessage{
 		Kind:    "CANCEL",
 		Message: ID,
@@ -321,6 +352,18 @@ func (p *PsychTimer) Cancel(ID string) {
 
 	p.ch <- ServerMessage{
 		Kind:    "END",
+		Message: ID,
+	}
+}
+
+func (p *PsychTimer) Skip(ID string) {
+	if p.intervalCancel != nil {
+		p.intervalCancel()
+	}
+	p.currentFile.WriteEvent("PsychTimer/"+p.config.StudyLabel+" Event", "Skip")
+
+	p.ch <- ServerMessage{
+		Kind:    "SKIP",
 		Message: ID,
 	}
 }

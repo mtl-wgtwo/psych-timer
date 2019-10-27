@@ -26,8 +26,9 @@ type ClientMessage struct {
 }
 
 type ServerMessage struct {
-	Kind    string `json:"kind,omitempty"`
-	Message string `json:"message,omitempty"`
+	Kind      string `json:"kind,omitempty"`
+	Message   string `json:"message,omitempty"`
+	ExtraInfo string `json:"extraInfo,omitempty"`
 }
 
 var client *PsychTimer
@@ -62,7 +63,6 @@ func (m *mapHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctype := mime.TypeByExtension(filepath.Ext(upath))
 	w.Header().Set("Content-Type", ctype)
 	w.Header().Set("Feature-Policy", "autoplay 'self'")
-	log.Debug("Fetching ", upath, ", data is ", m.root[upath])
 	fmt.Fprint(w, m.root[upath])
 }
 
@@ -118,13 +118,15 @@ func handleActions() {
 	for {
 		// Grab the next message from the broadcast channel
 		msg := <-actionChan
-		log.Debugf("Handling message %+v\n", msg)
+		log.Debugf("Handling message of type %+v\n", msg.Action)
 
 		switch msg.Action {
 		case "START":
 			go client.RunOne(msg.SubjectID)
 		case "CANCEL":
 			client.Cancel(msg.SubjectID)
+		case "SKIP":
+			client.Skip(msg.SubjectID)
 		case "KEY":
 			log.Debugf("Received key %s (keycode %d) for subject %s\n", msg.Content, msg.KeyCode, msg.SubjectID)
 			client.AddKey(msg.Content, msg.KeyCode)
@@ -199,17 +201,15 @@ Options:
 
 	client = NewPsychTimer(c, serverChan)
 
-	log.Debugf("%+v\n", c)
+	log.Debugf("%+v\n", c.StudyLabel)
 
 	http.Handle("/", MapServer(Data, "/static/"))
 
 	// Configure websocket route
 	http.HandleFunc("/ws", handleConnections)
-	log.Debugf("Data: %+v", Data)
 	for k, v := range Data {
 		Data[strings.ReplaceAll(k, "\\", "/")] = v
 	}
-	log.Debugf("Data: %+v", Data)
 
 	go handleActions()
 	go handleServerMessages()

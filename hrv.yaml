@@ -14,7 +14,9 @@ intervals:
       timed event for this PEEP. Makes another TWO PEEPs after 5 minutes which ends the baseline.</p>
     pauseBefore:
       type: wait
+    canSkip: true
   - label: Condition
+    canSkip: true
     time: 300
     playSound: true
     pauseBefore:
