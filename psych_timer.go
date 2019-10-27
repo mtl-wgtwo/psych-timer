@@ -264,6 +264,9 @@ func (p *PsychTimer) RunOne(ID string) {
 func (p *PsychTimer) AddKey(k string, b byte) {
 	p.matchMutex.Lock()
 	defer p.matchMutex.Unlock()
+
+	// If we receive an "Enter" we need to pass it along directly,
+	// Otherwise we will want to send the key value instead
 	if b != 13 {
 		p.matchBytes = append(p.matchBytes, []byte(k)[0])
 	} else {
