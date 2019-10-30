@@ -1,35 +1,50 @@
-intervals:
-  - label: TwentyFiveSecond
-    time: 25
-    playSound: true
-    inputMatcher: "([0-9]+)[\n\r]"
-    pauseAfter:
-      - type: input
-      - type: time
-        time: 20
-  - label: ThirtyFiveSecond
-    time: 35
-    playSound: true
-    inputMatcher: "([0-9]+)[\n\r]"
-    pauseAfter:
-      - type: input
-      - type: time
-        time: 20
-  - label: FortyFiveSecond
-    time: 45
-    playSound: true
-    inputMatcher: "([0-9]+)[\n\r]"
-    pauseAfter:
-      - type: input
-      - type: time
-        time: 20
-randomizeInterval: true
+intervalGroups:
+  - randomizeInterval: false
+    intervals:
+      - label: TenSecondWarmup
+        time: 10
+        playSound: true
+        inputMatcher: "([0-9]+)[\n\r]"
+        pauseAfter:
+          - type: input
+          - type: wait
+        instructions: |
+          <p><b>SI</b>: Er du klar?
+          (start oppgaven hvis personen sier den er klar)</p>
+
+          <p><b>GJØR</b>: <em>Testleder trykker CONTINUE for et PIP som oppgaven.</em></p>
+  - randomizeInterval: true
+    intervals:
+      - label: TwentyFiveSecond
+        time: 25
+        playSound: true
+        inputMatcher: "([0-9]+)[\n\r]"
+        pauseAfter:
+          - type: input
+          - type: time
+            time: 20
+      - label: ThirtyFiveSecond
+        time: 35
+        playSound: true
+        inputMatcher: "([0-9]+)[\n\r]"
+        pauseAfter:
+          - type: input
+          - type: time
+            time: 20
+      - label: FortyFiveSecond
+        time: 45
+        playSound: true
+        inputMatcher: "([0-9]+)[\n\r]"
+        pauseAfter:
+          - type: input
+          - type: time
+            time: 20
 playSound: true
 preSoundFile: "pre.wav"
 postSoundFile: "post.wav"
 introText: "Dette er interosepsjonsoppgaven"
 studyLabel: "Interoception"
-resultsDir: "results"
+resultsDir: "results_interoception"
 port: 8091
 instructions: |
   <p><b>SI</b>: Nå skal vi gjøre en oppgave der det er viktig at du sitter så rolig du kan. Du skal ikke snakke. I

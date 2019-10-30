@@ -24,6 +24,11 @@ type Pause struct {
 	wait chan bool
 }
 
+type IntervalGroup struct {
+	RandomizeInterval bool       `yaml:"randomizeInterval,omitempty" json:"randomize_interval,omitempty"`
+	Intervals         []Interval `yaml:"intervals,omitempty" json:"intervals,omitempty"`
+}
+
 type Interval struct {
 	Label        string   `yaml:"label,omitempty"`
 	Time         int      `yaml:"time,omitempty"` //seconds
@@ -38,14 +43,13 @@ type Interval struct {
 }
 
 type Config struct {
-	Intervals         []Interval `yaml:"intervals,omitempty" json:"intervals,omitempty"`
-	RandomizeInterval bool       `yaml:"randomizeInterval,omitempty" json:"randomize_interval,omitempty"`
-	PreSoundFile      string     `yaml:"preSoundFile,omitempty" json:"pre_sound_file,omitempty"`
-	PostSoundFile     string     `yaml:"postSoundFile,omitempty" json:"post_sound_file,omitempty"`
-	StudyLabel        string     `yaml:"studyLabel,omitempty" json:"study_label,omitempty"`
-	ResultsDir        string     `yaml:"resultsDir,omitempty" json:"results_dir,omitempty"`
-	Port              string     `yaml:"port,omitempty"`
-	Instructions      string     `yaml:"instructions,omitempty" json:"instructions,omitempty"`
+	IntervalGroups []IntervalGroup `yaml:"intervalGroups,omitempty" json:"intervalGroups,omitempty"`
+	PreSoundFile   string          `yaml:"preSoundFile,omitempty" json:"pre_sound_file,omitempty"`
+	PostSoundFile  string          `yaml:"postSoundFile,omitempty" json:"post_sound_file,omitempty"`
+	StudyLabel     string          `yaml:"studyLabel,omitempty" json:"study_label,omitempty"`
+	ResultsDir     string          `yaml:"resultsDir,omitempty" json:"results_dir,omitempty"`
+	Port           string          `yaml:"port,omitempty"`
+	Instructions   string          `yaml:"instructions,omitempty" json:"instructions,omitempty"`
 }
 
 type soundConfig struct {
@@ -76,12 +80,12 @@ type PsychTimer struct {
 	currentPause   *Pause
 }
 
-func (p *PsychTimer) maybeShuffleIntervals() {
-	if p.config.RandomizeInterval {
+func (p *PsychTimer) maybeShuffleIntervals(ig IntervalGroup) {
+	if ig.RandomizeInterval {
 		r := rand.New(rand.NewSource(time.Now().UnixNano()))
 
-		r.Shuffle(len(p.config.Intervals), func(i, j int) {
-			p.config.Intervals[i], p.config.Intervals[j] = p.config.Intervals[j], p.config.Intervals[i]
+		r.Shuffle(len(ig.Intervals), func(i, j int) {
+			ig.Intervals[i], ig.Intervals[j] = ig.Intervals[j], ig.Intervals[i]
 		})
 	}
 }
@@ -106,9 +110,11 @@ func NewPsychTimer(c Config, ch chan ServerMessage) *PsychTimer {
 	t, _ := copystructure.Copy(c)
 	n := t.(Config)
 
-	for i, interval := range n.Intervals {
-		if interval.InputMatcher != "" {
-			n.Intervals[i].regexMatcher = regexp.MustCompile(interval.InputMatcher)
+	for j, ig := range n.IntervalGroups {
+		for i, interval := range ig.Intervals {
+			if interval.InputMatcher != "" {
+				n.IntervalGroups[j].Intervals[i].regexMatcher = regexp.MustCompile(interval.InputMatcher)
+			}
 		}
 	}
 
@@ -214,7 +220,7 @@ func (p *PsychTimer) handlePauses(v Interval, pauses []*Pause) (isBreak bool) {
 	return
 }
 
-func (p *PsychTimer) runOneInverval(ID string, i int, v Interval) {
+func (p *PsychTimer) runOneInterval(ID string, g int, i int, v Interval) {
 	isCanceled := false
 	defer func() {
 		p.intervalCancel()
@@ -224,7 +230,7 @@ func (p *PsychTimer) runOneInverval(ID string, i int, v Interval) {
 
 	p.intervalCtx, p.intervalCancel = context.WithCancel(p.runCtx)
 	p.clearInput()
-	p.currentInterval = &p.config.Intervals[i]
+	p.currentInterval = &p.config.IntervalGroups[g].Intervals[i]
 	p.ch <- ServerMessage{
 		Kind:    "INFO",
 		Message: fmt.Sprintf("Starting new interval for %s: %s", ID, v.Label),
@@ -265,7 +271,6 @@ func (p *PsychTimer) runOneInverval(ID string, i int, v Interval) {
 }
 
 func (p *PsychTimer) RunOne(ID string) {
-	p.maybeShuffleIntervals()
 	p.runCtx, p.runCancel = context.WithCancel(context.Background())
 	p.ch <- ServerMessage{
 		Kind:    "BEGIN",
@@ -274,14 +279,17 @@ func (p *PsychTimer) RunOne(ID string) {
 	p.currentFile = NewMindwareFile(filepath.Join(p.config.ResultsDir, ID+".txt"))
 	defer p.currentFile.Close()
 
-	for i, v := range p.config.Intervals {
-		p.runOneInverval(ID, i, v)
-		select {
-		case <-p.runCtx.Done():
-			// If the entire run was canceled, then exit everything
-			return
-		case <-time.After(time.Duration(10) * time.Millisecond):
-			// do nothing
+	for j, group := range p.config.IntervalGroups {
+		p.maybeShuffleIntervals(group)
+		for i, interval := range group.Intervals {
+			p.runOneInterval(ID, j, i, interval)
+			select {
+			case <-p.runCtx.Done():
+				// If the entire run was canceled, then exit everything
+				return
+			case <-time.After(time.Duration(10) * time.Millisecond):
+				// do nothing
+			}
 		}
 	}
 	p.ch <- ServerMessage{
