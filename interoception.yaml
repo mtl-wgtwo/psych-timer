@@ -1,18 +1,34 @@
 intervalGroups:
   - randomizeInterval: false
     intervals:
+      - label: Instructions
+        playSound: false
+        pauseBefore:
+          - type: wait
+            instructions: |
+              <p><b>SI</b>: Nå skal vi gjøre en oppgave der du skal telle hjerteslagene dine. Du kan ikke holde pusten eller kjenne med hånda noe sted på kroppen for å kjenne hjerteslagene bedre. 
+              Det kommer et kort PIP når du skal starte å telle og to korte PIP når du skal slutte. Første gangen nå øver vi bare.</p>
+              <p><em></p>
+              <p>Er du klar? (start oppgaven hvis personen sier den er klar)</p>
+              <p><b>GJØR</b>: Testleder trykker CONTINUE for et PIP som starter første øvingssekvens som er 10 sekund.</p>
+
       - label: TenSecondWarmup
         time: 10
         playSound: true
         inputMatcher: "([0-9]+)[\n\r]"
         pauseAfter:
+          - type: wait
+            instructions: |
+              <p><b>SI</b>: Skriv inn det antallet hjerteslag du kjente og trykk enter.</p> 
+              <p><b>GJØR</b>: <em>Testleder trykker CONTINUE før personen skriver.</em></p>
           - type: input
           - type: wait
-        instructions: |
-          <p><b>SI</b>: Er du klar?
-          (start oppgaven hvis personen sier den er klar)</p>
+            instructions: |
+              <p><b>SI</b>: Når vi starter oppgaven teller du på nytt fra du hører et PIP til du hører to PIP, og så skriver du. 
+              Dette gjentar seg tre ganger med pauser mellom. Er du klar?
+              (start oppgaven hvis personen sier den er klar)</p>
+              <p><b>GJØR</b>: <em>Testleder trykker CONTINUE for et PIP som starter oppgaven. Programmet venter på at subjekt skriver inn et tall og enter etter hver tellesekvens.</em></p>
 
-          <p><b>GJØR</b>: <em>Testleder trykker CONTINUE for et PIP som oppgaven.</em></p>
   - randomizeInterval: true
     intervals:
       - label: TwentyFiveSecond
@@ -47,22 +63,4 @@ studyLabel: "Interoception"
 resultsDir: "results_interoception"
 port: 8091
 instructions: |
-  <p><b>SI</b>: Nå skal vi gjøre en oppgave der det er viktig at du sitter så rolig du kan. Du skal ikke snakke. I
-  denne oppgaven vil jeg at du teller hjerteslagene dine.  Du kan ikke holde pusten eller ta pulsen noe sted på kroppen for 
-  å kjenne hjerteslagene bedre, bare sitt helt rolig og tell de slagene du kjenner. 
-  Det kommer et kort PIP når du skal starte å telle og to korte PIP når du skal slutte å telle. Etter de to PIPENE skriver du inn 
-  det antallet hjerteslag du talte og trykker enter. Dette gjentar seg tre ganger med en kort pause mellom, du gjør akkurat det
-  samme hver gang, tell fra det første pipet til de to pipene og skriv inn det antallet du talte pluss enter. Så begynner du 
-  å telle når det kommer et nytt pip igjen.</p>
-  <p><em>(Sjekk at personen har forstått instruks, gjenta om nødvendig.)</p>
-  <p>Er du klar? (start oppgaven hvis personen sier den er klar)</p>
-
-  <p><b>GJØR</b>: Testleder trykker CONTINUE for et PIP som starter første tellesekvens som er 25/35/45 s lang
-  (randomisert)</p>
-
-  <p><b>WHAT THE PROGRAM DOES</b>: gives a PEEP when testleader hits button after instructions. Makes a
-  timed event for this PEEP. Makes another TWO PEEPs after 25/35/45 seconds.  *Then a 20 second pause before the program starts a new 25/35/45 s randomized sequence with a
-  PEEP, and ends it with TWO PEEPS. Repeats from * one more time.</p>
-
-  <p><b>What the subject does</b>: counts heartbeats between one PEEP and two PEEPS, enters count and enter
-  after TWO PEEPS, within the 20 second pause.</p>
+  Dette er interosepsjonstesten

@@ -19,9 +19,10 @@ import (
 )
 
 type Pause struct {
-	Type string `yaml:"type,omitempty"`
-	Time int    `yaml:"time,omitempty"` //seconds
-	wait chan bool
+	Type         string `yaml:"type,omitempty"`
+	Time         int    `yaml:"time,omitempty"` //seconds
+	Instructions string `yaml:"instructions,omitempty"`
+	wait         chan bool
 }
 
 type IntervalGroup struct {
@@ -36,7 +37,6 @@ type Interval struct {
 	PauseAfter   []*Pause `yaml:"pauseAfter,omitempty"`
 	PauseBefore  []*Pause `yaml:"pauseBefore,omitempty"`
 	InputMatcher string   `yaml:"inputMatcher,omitempty"`
-	Instructions string   `yaml:"instructions,omitempty"`
 	CanSkip      bool     `yaml:"canSkip,omitempty"`
 
 	regexMatcher *regexp.Regexp `yaml:"regexMatcher,omitempty"`
@@ -59,10 +59,15 @@ type soundConfig struct {
 }
 
 type PsychTimer struct {
-	config          Config
-	conn            *websocket.Conn
-	preSound        *soundConfig
-	postSound       *soundConfig
+	config Config
+	conn   *websocket.Conn
+
+	// Sound stuff
+	preSound         *soundConfig
+	postSound        *soundConfig
+	soundInitialized bool
+
+	// input matching
 	matches         []string
 	matchBytes      []byte
 	matchMutex      *sync.Mutex
@@ -153,7 +158,10 @@ func (p *PsychTimer) playBeep(s *soundConfig) {
 	log.Debugf("Playing sound %s\n", s.file)
 
 	s.streamer.Seek(0)
-	speaker.Init(s.format.SampleRate, s.format.SampleRate.N(time.Second/10))
+	if !p.soundInitialized {
+		speaker.Init(s.format.SampleRate, s.format.SampleRate.N(time.Second/10))
+		p.soundInitialized = true
+	}
 	speaker.Play(s.streamer)
 }
 
@@ -180,7 +188,7 @@ func (p *PsychTimer) handlePauses(v Interval, pauses []*Pause) (isBreak bool) {
 			pause.wait = make(chan bool, 1)
 			sm := ServerMessage{
 				Kind:    "WAIT",
-				Message: v.Instructions,
+				Message: pause.Instructions,
 			}
 			if v.CanSkip {
 				sm.ExtraInfo = "canSkip"
