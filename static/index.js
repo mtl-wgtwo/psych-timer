@@ -97,7 +97,7 @@ new Vue({
         start: function () {
             var self = this;
             if (!this.subjectId) {
-                Materialize.toast('You must enter an id for the subject', 2000);
+                M.toast({ html: 'You must enter an id for the subject', displayLength: 2000 });
                 return
             }
             this.subjectId = $('<p>').html(this.subjectId).text();
